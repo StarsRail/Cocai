@@ -52,14 +52,15 @@ No need to explicitly install Python packages. `uv`, the package manager of our 
 These are the binary programs that you need to have ready before running Cocai:
 - Install [`just`](https://github.com/casey/just), a command runner. I use this because I always tend to forget the exact command to run.
 - Written in Python, this project uses the Rust-based package manager [`uv`](https://docs.astral.sh/uv/). It does not require you to explicitly create a virtual environment.
-- Install minIO. It allows Chainlit -- our frontend framework -- to persist data.
+- Install Docker. Cocai requires many types of databases, e.g. object storage and vector storage, along with some containerized applications. We need the `docker-compose` command to orchestrate these containers.
 - As aforementioned, if you decide to self-host a LLM, install Ollama.
 - If you ever want to run the chatbot the easy way (discussed later), you'll need `tmuxinator` and `tmux`.
 
 If you are on macOS, you can install these programs using Homebrew:
 
 ```shell
-brew install just uv minio ollama tmuxinator tmux
+brew install just uv ollama tmuxinator
+brew install --cask docker
 ```
 
 Optionally, also install [Stable Diffusion Web UI][sdwu]. This allows the chatbot to generate illustrations.
@@ -127,11 +128,13 @@ In the easy way, **simply run `just serve-all`**. This will start all the requir
 
 In the hard way, you want to create a separate terminal for each command:
 1. Start serving **Ollama** (for locally inferencing embedding & language models) by running `ollama serve`. It should be listening at `http://localhost:11434/v1`.
-2. Start serving **minIO** (for persisting data for our web frontend) by running `minio server .minio/`.
-3. Start serving **Phoenix** (for debugging thought chains) by running `uv run phoenix serve`.
-4. Optionally, to enable your AI Keeper to draw illustrations, start serving a "**Stable Diffusion web UI**" server with API support turned on by running `cd ../stable-diffusion-webui; ./webui.sh --api --nowebui --port 7860`.
+2. Start Docker containers by running `docker-compose up`. This includes:
+   - **minIO** object database (for persisting data for our web frontend, including user credentials and chat history -- not thought chains, though)
+   - **Arize Phoenix** platform (for debugging thought chains)
+   - **Qdrant** vector database (for the chatbot's short-term memory -- this is implemented via `mem0`)
+3. Optionally, to enable your AI Keeper to draw illustrations, start serving a "**Stable Diffusion web UI**" server with API support turned on by running `cd ../stable-diffusion-webui; ./webui.sh --api --nowebui --port 7860`.
   If Stable Diffusion is not running, the AI Keeper will still be able to generate text-based responses. It's just that it won't be able to draw illustrations.
-5. Finally, start serving the **chatbot** by running `just serve`.
+4. Finally, start serving the **chatbot** by running `just serve`.
 
 Either way, Cocai should be ready at `http://localhost:8000/chat/`. Log in with the dummy credentials `admin` and `admin`.
 

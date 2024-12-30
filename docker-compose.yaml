@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.5-unprivileged
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage:z
+
+  phoenix:
+    image: arizephoenix/phoenix:version-7.3.2-nonroot
+    ports:
+      - "6006:6006"
+      - "4317:4317"
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-12-18T13-15-44Z
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./.minio:/data
+    command: server /data --console-address ":9001"
