@@ -3,13 +3,13 @@ import logging
 import os
 
 import chainlit as cl
+import nest_asyncio
 from llama_index.core import Settings
 from llama_index.core.agent import AgentRunner, FunctionCallingAgent
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
-from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.core.storage.chat_store import SimpleChatStore
 from llama_index.core.tools import FunctionTool
 from llama_index.embeddings.ollama import OllamaEmbedding
+from llama_index.memory.mem0 import Mem0Memory
 from llama_index.tools.tavily_research import TavilyToolSpec
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
@@ -25,14 +25,12 @@ from utils import set_up_data_layer
 
 logger = logging.getLogger(__name__)
 
-# This object holds all chat histories that occur throughout the current LlamaIndex process.
-# This does not mean all chat histories/chat sessions that happened across boot-ups;
-# those are handled by the data persistence layer in Chainlit.
-# That said, we would still like to have a global variable for this, so that it can be shared across all chat
-# memories / chat sessions; otherwise, the default behavior is initializing one chat store per chat session.
-chat_store = SimpleChatStore()
-
 set_up_data_layer()
+
+# This is needed to avoid the error "RuntimeError: Cannot set up the event loop when in a different thread".
+# This may happen when we use Mem0. I haven't seen this error myself, but the official documentation suggests this.
+# https://docs.llamaindex.ai/en/stable/examples/memory/Mem0Memory/#mem0-for-function-calling-agents
+nest_asyncio.apply()
 
 try:
     # "Phoenix can display in real time the traces automatically collected from your LlamaIndex application."
@@ -119,7 +117,7 @@ def set_up_llama_index(max_action_steps: int = 5):
 
     Settings.embed_model = OllamaEmbedding(
         # https://ollama.com/library/nomic-embed-text
-        model_name="nomic-embed-text",
+        model_name="nomic-embed-text:latest",
         # Uncomment the following line to use the LLM server running on my gaming PC.
         # base_url="http://10.147.20.237:11434",
     )
@@ -196,17 +194,42 @@ async def set_starters():
 async def factory():
     # Each chat session should have his own agent runner, because each chat session has different chat histories.
     key = cl.user_session.get("id")
-    chat_memory = ChatMemoryBuffer.from_defaults(
-        chat_store=chat_store,
-        chat_store_key=key,
+    memory_from_config = Mem0Memory.from_config(
+        config={
+            "vector_store": {
+                "provider": "qdrant",
+                "config": {
+                    "collection_name": "cocai",
+                    "embedding_model_dims": 768,  # Change this according to your local model's dimensions
+                    "host": "localhost",
+                    "port": 6333,
+                },
+            },
+            "llm": {
+                "provider": "ollama",
+                "config": {
+                    "model": "llama3.1",
+                    "temperature": 0,
+                    "max_tokens": 8000,
+                    "ollama_base_url": "http://localhost:11434",
+                },
+            },
+            "embedder": {
+                "provider": "ollama",
+                "config": {
+                    "model": "nomic-embed-text:latest",
+                    "ollama_base_url": "http://localhost:11434",
+                    "embedding_dims": 768,  # Change this according to your local model's dimensions
+                },
+            },
+        },
+        context={"user_id": key},
     )
     agent_runner = FunctionCallingAgent.from_tools(
         system_prompt=my_system_prompt,
         tools=all_tools,
         verbose=True,
-        # x2: An observation step also takes as an iteration.
-        # +1: The final output reasoning step needs to take a spot.
-        memory=chat_memory,
+        memory=memory_from_config,
     )
     cl.user_session.set(
         "agent",
