@@ -3,9 +3,8 @@ import logging
 import os
 
 import chainlit as cl
-from llama_index.agent.openai import OpenAIAgent
 from llama_index.core import Settings
-from llama_index.core.agent import AgentRunner
+from llama_index.core.agent import AgentRunner, FunctionCallingAgent
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 from llama_index.core.memory import ChatMemoryBuffer
 from llama_index.core.storage.chat_store import SimpleChatStore
@@ -201,7 +200,7 @@ async def factory():
         chat_store=chat_store,
         chat_store_key=key,
     )
-    agent_runner = OpenAIAgent.from_tools(
+    agent_runner = FunctionCallingAgent.from_tools(
         system_prompt=my_system_prompt,
         tools=all_tools,
         verbose=True,
