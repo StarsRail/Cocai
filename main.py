@@ -196,6 +196,7 @@ async def factory():
     key = cl.user_session.get("id")
     memory_from_config = Mem0Memory.from_config(
         config={
+            "version": "v1.1",
             "vector_store": {
                 "provider": "qdrant",
                 "config": {
