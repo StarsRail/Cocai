@@ -7,7 +7,7 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - ./qdrant_storage:/qdrant/storage:z
+      - ./.qdrant_storage:/qdrant/storage:z
 
   phoenix:
     image: arizephoenix/phoenix:version-7.3.2-nonroot
