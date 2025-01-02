@@ -109,7 +109,8 @@ def set_up_llama_index(max_action_steps: int = 5):
 
         Settings.llm = OpenAILike(
             model="llama3.1",
-            api_base=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            api_base=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+            + "/v1",
             api_key="ollama",
             is_function_calling_model=True,
             is_chat_model=True,
@@ -118,7 +119,7 @@ def set_up_llama_index(max_action_steps: int = 5):
     Settings.embed_model = OllamaEmbedding(
         # https://ollama.com/library/nomic-embed-text
         model_name="nomic-embed-text:latest",
-        base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+        base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
     # ============= End of the code block for wiring on to models. =============
     if api_key := os.environ.get("TAVILY_API_KEY", None):
@@ -211,7 +212,7 @@ async def factory():
                     "temperature": 0,
                     "max_tokens": 8000,
                     "ollama_base_url": os.environ.get(
-                        "OLLAMA_BASE_URL", "http://localhost:11434/v1"
+                        "OLLAMA_BASE_URL", "http://localhost:11434"
                     ),
                 },
             },
@@ -220,7 +221,7 @@ async def factory():
                 "config": {
                     "model": "nomic-embed-text:latest",
                     "ollama_base_url": os.environ.get(
-                        "OLLAMA_BASE_URL", "http://localhost:11434/v1"
+                        "OLLAMA_BASE_URL", "http://localhost:11434"
                     ),
                     "embedding_dims": 768,  # Change this according to your local model's dimensions
                 },
