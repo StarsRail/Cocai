@@ -305,6 +305,7 @@ dependencies = [
     { name = "llama-index-llms-openai-like" },
     { name = "llama-index-memory-mem0" },
     { name = "llama-index-tools-tavily-research" },
+    { name = "llama-index-vector-stores-qdrant" },
     { name = "openinference-instrumentation-llama-index" },
     { name = "opentelemetry-proto" },
     { name = "rich" },
@@ -329,6 +330,7 @@ requires-dist = [
     { name = "llama-index-llms-openai-like", specifier = ">=0.2.0" },
     { name = "llama-index-memory-mem0", specifier = ">=0.2.1" },
     { name = "llama-index-tools-tavily-research", specifier = ">=0.2.0" },
+    { name = "llama-index-vector-stores-qdrant", specifier = ">=0.4.0" },
     { name = "openinference-instrumentation-llama-index", specifier = ">=2" },
     { name = "opentelemetry-proto", specifier = ">=1.12.0" },
     { name = "rich", specifier = ">=13.8.0" },
@@ -1044,6 +1046,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/4f/3b/fb5cf7d5fed4902829200af9b4b7cfce6676d9f8442cd542e2066944a59d/llama_index_tools_tavily_research-0.3.0.tar.gz", hash = "sha256:2b6fb6823684a63696f70fef01f13a6096068a48088f5fb95eba4919d7ca6b7f", size = 3085 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f7/07/9aa94120bf066ecbd5819ad5fac340968d4352c324a4f0d37587f9d1bdae/llama_index_tools_tavily_research-0.3.0-py3-none-any.whl", hash = "sha256:0fb973d56e98b3d7289e7dbedf28e687b7ada8949e67dfca7bfb468bd4ea5dbd", size = 3338 },
+]
+
+[[package]]
+name = "llama-index-vector-stores-qdrant"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "grpcio" },
+    { name = "llama-index-core" },
+    { name = "qdrant-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/94/cb/0a3509d997fa26f64e06a76a6878c551cdbeb72a0a5e36bf628656559277/llama_index_vector_stores_qdrant-0.4.0.tar.gz", hash = "sha256:86fe9cc4248a36d8d47d960d936a31ac98b5d3000be24c59793c77bf57a394a7", size = 10600 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bb/91/ec15b60802ea803abf9e8f0cf216120abe899d7aed23590a1a9473b64bf5/llama_index_vector_stores_qdrant-0.4.0-py3-none-any.whl", hash = "sha256:ae223cb50fa42aab1354897810afb7615a0f17bd059db463b95b0e3ed5526c1f", size = 11278 },
 ]
 
 [[package]]

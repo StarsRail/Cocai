@@ -10,11 +10,18 @@ from typing import List, Literal, Optional
 
 import chainlit as cl
 import cochar.skill
+import qdrant_client
 import requests
 from cochar.character import Character
-from llama_index.core import Settings, SimpleDirectoryReader, VectorStoreIndex
+from llama_index.core import (
+    Settings,
+    SimpleDirectoryReader,
+    StorageContext,
+    VectorStoreIndex,
+)
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from llama_index.core.tools import FunctionTool
+from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import BaseModel, Field
 
 
@@ -109,20 +116,33 @@ class ToolForConsultingTheModule:
         self,
         path_to_module_folder: Path = Path("game_modules/"),
     ):
-        documents = SimpleDirectoryReader(
-            input_dir=str(path_to_module_folder),
-            # https://docs.llamaindex.ai/en/stable/module_guides/loading/simpledirectoryreader.html#reading-from-subdirectories
-            recursive=True,
-            # https://docs.llamaindex.ai/en/stable/module_guides/loading/simpledirectoryreader.html#restricting-the-files-loaded
-            # Before including image files here, `mamba install pillow`.
-            # Before including audio files here, `pip install openai-whisper`.
-            required_exts=[".md", ".txt"],
-        ).load_data()
-        index = VectorStoreIndex.from_documents(
-            # https://docs.llamaindex.ai/en/stable/api_reference/indices/vector_store.html#llama_index.indices.vector_store.base.VectorStoreIndex.from_documents
-            documents=documents,
-            show_progress=True,
+        logger = logging.getLogger("ToolForConsultingTheModule")
+        client = qdrant_client.QdrantClient(
+            host="localhost",
+            port=6333,
         )
+        vector_store = QdrantVectorStore(client=client, collection_name="game_module")
+        if client.collection_exists("game_module"):
+            logger.info("The collection exists. Loading.")
+            index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
+        else:
+            logger.info("The collection does not exist. Creating.")
+            documents = SimpleDirectoryReader(
+                input_dir=str(path_to_module_folder),
+                # https://docs.llamaindex.ai/en/stable/module_guides/loading/simpledirectoryreader.html#reading-from-subdirectories
+                recursive=True,
+                # https://docs.llamaindex.ai/en/stable/module_guides/loading/simpledirectoryreader.html#restricting-the-files-loaded
+                # Before including image files here, `mamba install pillow`.
+                # Before including audio files here, `pip install openai-whisper`.
+                required_exts=[".md", ".txt"],
+            ).load_data()
+            storage_context = StorageContext.from_defaults(vector_store=vector_store)
+            index = VectorStoreIndex.from_documents(
+                # https://docs.llamaindex.ai/en/stable/api_reference/indices/vector_store.html#llama_index.indices.vector_store.base.VectorStoreIndex.from_documents
+                documents=documents,
+                storage_context=storage_context,
+                show_progress=True,
+            )
         self.query_engine = index.as_query_engine(
             similarity_top_k=5,
             # For a query engine hidden inside an Agent, streaming really doesn't make sense.
