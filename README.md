@@ -32,6 +32,43 @@ Thanks to the chain-of-thought (CoT) visualization feature, you can unfold the t
 
 <img width="771" alt="image" src="https://github.com/user-attachments/assets/8ae52b80-b3c0-4978-9649-64039a5c113e">
 
+## Architecture
+
+Prominent dependencies of _Cocai_ include:
+
+```mermaid
+flowchart TD
+    subgraph Standalone Programs
+        o[Ollama]
+        s[Stable Diffusion Web UI]
+    subgraph managed by Docker Compose
+        q[(Qdrant)]
+        m[(minIO)]
+        a[Arize Phoenix]
+    end
+    end
+    subgraph Python packages
+        mem0[mem0]
+        l[Chainlit]
+        c[LlamaIndex]
+    end
+    s -. "provides drawing capability to" .-> c
+    o -. "provides LLM & Embedding Model to" .-> c
+    q --provides Vector DB to --> c
+    q --provides Vector DB to --> mem0
+    mem0 --provides short-term memory to --> c
+    o --provides LLM & Embedding Model to --> mem0
+
+    m --provides Object DB to --> l
+    l --provides Web UI to --> c
+    a --provides observability to --> c
+```
+
+Zooming in on the programs managed by Docker Compose, here are the ports and local folders (git-ignored) that each container will expose and use:
+
+![programs managed by Docker Compose](docker-compose.png)
+
+(Generated via `docker run --rm -it --name dcv -v $(pwd):/input pmsipilot/docker-compose-viz render -m image docker-compose.yaml`)
 
 ## Usage
 
