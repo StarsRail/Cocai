@@ -108,7 +108,7 @@ def set_up_llama_index(max_action_steps: int = 5):
         from llama_index.llms.openai_like import OpenAILike
 
         Settings.llm = OpenAILike(
-            model="llama3.1",
+            model=os.environ.get("OLLAMA_LLM_ID", "llama3.1"),
             api_base=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
             + "/v1",
             api_key="ollama",
@@ -209,7 +209,7 @@ async def factory():
             "llm": {
                 "provider": "ollama",
                 "config": {
-                    "model": "llama3.1",
+                    "model": os.environ.get("OLLAMA_LLM_ID", "llama3.1"),
                     "temperature": 0,
                     "max_tokens": 8000,
                     "ollama_base_url": os.environ.get(
