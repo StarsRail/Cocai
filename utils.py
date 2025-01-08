@@ -75,6 +75,9 @@ class MinioStorageClient(BaseStorageClient):
             logger.warn(f"MinioStorageClient, upload_file error: {e}")
             return {}
 
+    async def get_read_url(self, object_key: str) -> str:
+        return ""
+
 
 def set_up_data_layer(sqlite_file_path: str = ".chainlit/data.db"):
     # Import sqlalchemy. Connect to `sqlite+aiosqlite:///:memory:`.
