@@ -118,7 +118,7 @@ def set_up_llama_index(max_action_steps: int = 5):
 
     Settings.embed_model = OllamaEmbedding(
         # https://ollama.com/library/nomic-embed-text
-        model_name="nomic-embed-text:latest",
+        model_name=os.environ.get("OLLAMA_EMBED_MODEL_ID", "nomic-embed-text:latest"),
         base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
     # ============= End of the code block for wiring on to models. =============
@@ -194,8 +194,33 @@ async def set_starters():
 async def factory():
     # Each chat session should have his own agent runner, because each chat session has different chat histories.
     key = cl.user_session.get("id")
-    memory_from_config = Mem0Memory.from_config(
-        config={
+    memory = __prepare_memory(key)
+    agent_runner = FunctionCallingAgent.from_tools(
+        system_prompt=my_system_prompt,
+        tools=all_tools,
+        verbose=True,
+        memory=memory,
+    )
+    cl.user_session.set(
+        "agent",
+        agent_runner,
+    )
+
+
+def __prepare_memory(key):
+    logger = logging.getLogger("prepare_memory")
+    if api_key := os.environ.get("MEM0_API_KEY", None):
+        logger.info("Using Mem0 API.")
+        memory = Mem0Memory.from_client(
+            context={"user_id": key},
+            api_key=api_key,
+            search_msg_limit=4,  # optional, default is 5
+        )
+    else:
+        logger.info(
+            "Using local Mem0, because the env. var. `MEM0_API_KEY` wasn't found."
+        )
+        mem0_config = {
             "version": "v1.1",
             "vector_store": {
                 "provider": "qdrant",
@@ -206,7 +231,32 @@ async def factory():
                     "port": 6333,
                 },
             },
-            "llm": {
+            "embedder": {
+                "provider": "ollama",
+                "config": {
+                    "model": os.environ.get(
+                        "OLLAMA_EMBED_MODEL_ID", "nomic-embed-text:latest"
+                    ),
+                    "ollama_base_url": os.environ.get(
+                        "OLLAMA_BASE_URL", "http://localhost:11434"
+                    ),
+                    "embedding_dims": 768,  # Change this according to your local model's dimensions
+                },
+            },
+        }
+        if os.environ.get("OPENAI_API_KEY", None):
+            logger.info("Using OpenAI API for Mem0's LLM calls.")
+            mem0_config["llm"] = {
+                "provider": "openai",
+                "config": {
+                    "model": "gpt-4o-mini",
+                    "temperature": 0,
+                    "max_tokens": 8000,
+                },
+            }
+        else:
+            logger.info("Using Ollama's OpenAI-compatible API for Mem0's LLM calls.")
+            mem0_config["llm"] = {
                 "provider": "ollama",
                 "config": {
                     "model": os.environ.get("OLLAMA_LLM_ID", "llama3.1"),
@@ -216,30 +266,19 @@ async def factory():
                         "OLLAMA_BASE_URL", "http://localhost:11434"
                     ),
                 },
-            },
-            "embedder": {
-                "provider": "ollama",
-                "config": {
-                    "model": "nomic-embed-text:latest",
-                    "ollama_base_url": os.environ.get(
-                        "OLLAMA_BASE_URL", "http://localhost:11434"
-                    ),
-                    "embedding_dims": 768,  # Change this according to your local model's dimensions
-                },
-            },
-        },
-        context={"user_id": key},
-    )
-    agent_runner = FunctionCallingAgent.from_tools(
-        system_prompt=my_system_prompt,
-        tools=all_tools,
-        verbose=True,
-        memory=memory_from_config,
-    )
-    cl.user_session.set(
-        "agent",
-        agent_runner,
-    )
+            }
+        try:
+            memory = Mem0Memory.from_config(
+                config=mem0_config,
+                context={"user_id": key},
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to set up Mem0 memory. LlamaIndex will use default implementation (SimpleChatStore) instead.",
+                exc_info=e,
+            )
+            memory = None
+    return memory
 
 
 @cl.on_chat_end
