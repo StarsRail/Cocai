@@ -215,6 +215,7 @@ def __prepare_memory(key):
             context={"user_id": key},
             api_key=api_key,
             search_msg_limit=4,  # optional, default is 5
+            version="v1.1",
         )
     else:
         logger.info(
