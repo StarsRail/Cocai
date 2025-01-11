@@ -87,11 +87,11 @@ No need to explicitly install Python packages. `uv`, the package manager of our 
 #### Install the required binary programs
 
 These are the binary programs that you need to have ready before running Cocai:
-- Install [`just`](https://github.com/casey/just), a command runner. I use this because I always tend to forget the exact command to run.
-- Written in Python, this project uses the Rust-based package manager [`uv`](https://docs.astral.sh/uv/). It does not require you to explicitly create a virtual environment.
-- Install Docker. Cocai requires many types of databases, e.g. object storage and vector storage, along with some containerized applications. We need the `docker-compose` command to orchestrate these containers.
-- As aforementioned, if you decide to self-host a LLM, install Ollama.
-- If you ever want to run the chatbot the easy way (discussed later), you'll need `tmuxinator` and `tmux`.
+- [`just`](https://github.com/casey/just), a command runner. I use this because I always tend to forget the exact command to run.
+- [`uv`](https://docs.astral.sh/uv/), the Python package manager that Cocai uses. It does not require you to explicitly create a virtual environment.
+- [Docker](https://www.docker.com/). Cocai requires many types of databases, e.g. object storage and vector storage, along with some containerized applications. We need the `docker-compose` command to orchestrate these containers.
+- [Ollama][olm]. Doc ingestion and memories are relying on a local embedding model.
+- (Optional) [Tmuxinator](https://github.com/tmuxinator/tmuxinator) and [`tmux`](https://github.com/tmux/tmux/wiki), if you ever want to run the chatbot the easy way (discussed later).
 
 If you are on macOS, you can install these programs using Homebrew:
 
@@ -102,17 +102,12 @@ brew install --cask docker
 
 Optionally, also install [Stable Diffusion Web UI][sdwu]. This allows the chatbot to generate illustrations.
 
+[olm]: https://ollama.com/
 [sdwu]: https://github.com/AUTOMATIC1111/stable-diffusion-webui
 
 #### Self-serve an embedding model
 
-Ensure that you have a local Ollama server running:
-
-```shell
-ollama serve
-```
-
-and then:
+Ensure that you have a local Ollama server running (if not, start one with `ollama serve`). Then, download the [`nomic-embed-text`](https://ollama.com/library/nomic-embed-text) model by running:
 
 ```shell
 ollama pull nomic-embed-text
@@ -122,7 +117,7 @@ ollama pull nomic-embed-text
 
 The easiest (and perhaps highest-quality) way would be to provide an API key to OpenAI. Simply add `OPENAI_API_KEY=sk-...` to a `.env` file in the project root.
 
-With the absence of an OpenAI API key, the chatbot will default to using [Ollama](https://ollama.com/download), a program that serves LLMs locally.
+With the absence of an OpenAI API key, the chatbot will default to using [Ollama][olm], a program that serves LLMs locally.
 - Ensure that your local Ollama server has already downloaded the `llama3.1` model. If you haven't (or aren't sure), run `ollama pull llama3.1`.
 - If you want to use a different model that does not support function-calling, that's also possible. Revert [this commit][tc], so that you can use the ReAct paradigm to simulate function-calling capabilities with a purely semantic approach.
 
@@ -132,7 +127,7 @@ With the absence of an OpenAI API key, the chatbot will default to using [Ollama
 
 Run `chainlit create-secret` to generate a JWT token. Follow the instructions to add the secret to `.env`.
 
-Start serving minIO for the first time by running `minio server .minio/`. Then navigate to `http://127.0.0.1:57393/access-keys` and create a new access key. (You may need to log in first. The default credentials can be found in [their official documentation][mod].) Add the access key and secret key to `.env`:
+Start serving minIO for the first time (by running `minio server .minio/` if you have a local binary installed, or used Docker Compose command discussed below). Then navigate to `http://127.0.0.1:57393/access-keys` and create a new access key. (You may need to log in first. The default credentials can be found in [their official documentation][mod].) Add the access key and secret key to `.env`:
 
 [mod]: https://min.io/docs/minio/linux/reference/minio-server/settings/root-credentials.html#id1
 
@@ -154,23 +149,23 @@ There are 2 ways to start the chatbot, the easy way and the hard way.
 In the easy way, **simply run `just serve-all`**. This will start all the required standalone programs and the chatbot in one go. Notes:
 * **Use of multiplexer.** To avoid cluttering up your screen, we use a [terminal multiplexer][tmx] (`tmux`), which essentially divides your terminal window into panes, each running a separate program.
   The panes are defined in the file `tmuxinator.yaml`. [Tmuxinator](https://github.com/tmuxinator/tmuxinator) is a separate program that manages `tmux` sessions declaratively.
-* **Production-oriented**. This `just serve-all` command is also used in our containerized setup, namely `Dockerfile`. For this reason, the commands in `tmuxinator.yaml` are oriented towards production use.
-  For example, the chatbot doesn't listen on file changes to auto-reload itself, which could be a useful feature if you are tweaking the code frequently. If you want to enable auto-reloading:
-  * modify the `tmuxinator.yaml` (but please don't commit to git), or just
-  * run all commands manually (i.e., the hard way).
+* **Don't use the Dockerfile**. For a tech demo, I hacked up a `Dockerfile`, which uses this `just serve-all` command. But the `tmuxinator.yaml` file had been updated since, and I'm pretty sure the Dockerfile is broken now.
 
 [tmx]: https://en.wikipedia.org/wiki/Terminal_multiplexer
 
 <img width="1278" alt="image" src="https://github.com/user-attachments/assets/d7db810d-4de0-432d-87f2-affc14e1daa9">
 
 In the hard way, you want to create a separate terminal for each command:
-1. Start serving **Ollama** (for locally inferencing embedding & language models) by running `ollama serve`. It should be listening at `http://localhost:11434/v1`.
+1. Start serving **Ollama** by running `ollama serve`. It should be listening at `http://localhost:11434/v1`. Details:
+   - This is for locally inferencing embedding & language models.
+   - I did not containerize this because [Docker doesn't support GPUs in Apple Silicon](https://chariotsolutions.com/blog/post/apple-silicon-gpus-docker-and-ollama-pick-two/) (as of Feb 2024), which is what I'm using.
 2. Start Docker containers by running `docker-compose up`. This includes:
    - **minIO** object database (for persisting data for our web frontend, including user credentials and chat history -- not thought chains, though)
    - **Arize Phoenix** platform (for debugging thought chains)
    - **Qdrant** vector database (for the chatbot's short-term memory -- this is implemented via `mem0`)
-3. Optionally, to enable your AI Keeper to draw illustrations, start serving a "**Stable Diffusion web UI**" server with API support turned on by running `cd ../stable-diffusion-webui; ./webui.sh --api --nowebui --port 7860`.
-  If Stable Diffusion is not running, the AI Keeper will still be able to generate text-based responses. It's just that it won't be able to draw illustrations.
+3. Optionally, start serving a "**Stable Diffusion web UI**" server with API support turned on by running `cd ../stable-diffusion-webui; ./webui.sh --api --nowebui --port 7860`.
+   - This enables your AI Keeper to draw illustrations.
+   - If Stable Diffusion is not running, the AI Keeper will still be able to generate text-based responses. It's just that it won't be able to draw illustrations.
 4. Finally, start serving the **chatbot** by running `just serve`.
 
 Either way, Cocai should be ready at `http://localhost:8000/chat/`. Log in with the dummy credentials `admin` and `admin`.
