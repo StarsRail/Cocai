@@ -29,4 +29,4 @@
     - [Lashing Phantoms](<./Clean-Up-Aisle-Four/Mythos-Beings/Lashing-Phantoms.md>)
   - [Handouts](<./Clean-Up-Aisle-Four/Handouts.md>)
     - [Handout #1](<./Clean-Up-Aisle-Four/Handouts/Handout-1.md>)
-  - [Handout #2](<./Clean-Up-Aisle-Four/Handout-2.md>)
+    - [Handout #2](<./Clean-Up-Aisle-Four/Handouts/Handout-2.md>)
