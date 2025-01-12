@@ -76,8 +76,6 @@ def set_up_llama_index():
     """
     One-time setup code for shared objects across all AgentRunners.
     """
-    # Needed for "Retrieved the following sources" to show up on Chainlit.
-    Settings.callback_manager = create_callback_manager()
     # ============= Beginning of the code block for wiring on to models. =============
     # At least when Chainlit is involved, LLM initializations must happen upon the `@cl.on_chat_start` event,
     # not in the global scope.
@@ -122,6 +120,7 @@ def set_up_llama_index():
         base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
     # ============= End of the code block for wiring on to models. =============
+    # ============= Start of the code block for building tools. =============
     if api_key := os.environ.get("TAVILY_API_KEY", None):
         # Manage your API keys here: https://app.tavily.com/home
         logger.info(
@@ -132,13 +131,14 @@ def set_up_llama_index():
         ).to_tool_list()
     else:
         tavily_tool = []
+    tool_for_consulting_the_module = FunctionTool.from_defaults(
+        ToolForConsultingTheModule().consult_the_game_module,
+    )
     all_tools = tavily_tool + [
         FunctionTool.from_defaults(
             ToolForSuggestingChoices().suggest_choices,
         ),
-        FunctionTool.from_defaults(
-            ToolForConsultingTheModule().consult_the_game_module,
-        ),
+        tool_for_consulting_the_module,
         FunctionTool.from_defaults(
             roll_a_dice,
         ),
@@ -150,10 +150,25 @@ def set_up_llama_index():
         ),
         tool_for_creating_character,
     ]
+    # # ============= End of the code block for building tools. =============
     # Override the default system prompt for ReAct chats.
     with open("prompts/system_prompt.md") as f:
         MY_SYSTEM_PROMPT = f.read()
-    return all_tools, MY_SYSTEM_PROMPT
+    game_module_summary = tool_for_consulting_the_module.call(
+        "Story background, character requirements, and keeper's notes."
+    ).content
+    my_system_prompt = "\n\n".join(
+        [
+            MY_SYSTEM_PROMPT,
+            "A brief description of the game module you are hosting is as follows:",
+            game_module_summary,
+        ]
+    )
+    # Needed for "Retrieved the following sources" to show up on Chainlit.
+    # This procedure will register Chainlit's callback manager, which will require Chainlit's context variables to
+    # be ready before receiving an event, so it should be called AFTER calling the tool.
+    Settings.callback_manager = create_callback_manager()
+    return all_tools, my_system_prompt
 
 
 all_tools, my_system_prompt = set_up_llama_index()
