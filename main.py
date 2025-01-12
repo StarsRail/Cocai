@@ -72,7 +72,7 @@ def create_callback_manager() -> CallbackManager:
     return CallbackManager(callback_handlers)
 
 
-def set_up_llama_index(max_action_steps: int = 5):
+def set_up_llama_index():
     """
     One-time setup code for shared objects across all AgentRunners.
     """
@@ -153,12 +153,7 @@ def set_up_llama_index(max_action_steps: int = 5):
     # Override the default system prompt for ReAct chats.
     with open("prompts/system_prompt.md") as f:
         MY_SYSTEM_PROMPT = f.read()
-    my_system_prompt = MY_SYSTEM_PROMPT.replace(
-        # TODO: Use `PromptTemplate.partial_format`. Today, it's not working.
-        "{allowance}",
-        str(max_action_steps),
-    )
-    return all_tools, my_system_prompt
+    return all_tools, MY_SYSTEM_PROMPT
 
 
 all_tools, my_system_prompt = set_up_llama_index()
