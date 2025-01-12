@@ -1,0 +1,3 @@
+## Conclusion
+
+The adventure concludes when the investigators deal with the situation, perish or give up. If the investigators succeed in dealing with the situation, they should be awarded a 1D4 sanity points as a reward. It is likely that they will also earn the gratitude of the townspeople and the Zipp N’ Pik Corporation (insofar as corporations show gratitude). If the investigators perish, it is time to roll up new characters. If the investigators give up, the area will continue to be plagued with the lashing phantoms and it is very likely that new deaths will occur. In this case the cowardly weasels should receive a 1D3 sanity point loss.

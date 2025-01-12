@@ -1,5 +1,6 @@
 import base64
 import logging
+import os
 import random
 
 # How to use enums in Python: https://docs.python.org/3/howto/enum.html
@@ -114,7 +115,9 @@ class ToolForConsultingTheModule:
 
     def __init__(
         self,
-        path_to_module_folder: Path = Path("game_modules/"),
+        path_to_module_folder: Path = Path(
+            os.environ.get("GAME_MODULE_PATH", "game_modules/Clean-Up-Aisle-Four")
+        ),
     ):
         logger = logging.getLogger("ToolForConsultingTheModule")
         client = qdrant_client.QdrantClient(
@@ -122,11 +125,15 @@ class ToolForConsultingTheModule:
             port=6333,
         )
         vector_store = QdrantVectorStore(client=client, collection_name="game_module")
-        if client.collection_exists("game_module"):
+        if client.collection_exists("game_module") and bool(
+            os.environ.get("SHOULD_REUSE_EXISTING_INDEX", True)
+        ):
             logger.info("The collection exists. Loading.")
             index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
         else:
-            logger.info("The collection does not exist. Creating.")
+            logger.info(
+                "The collection does not exist, or the environment variable indicates that we should ignore the existing index. Creating."
+            )
             documents = SimpleDirectoryReader(
                 input_dir=str(path_to_module_folder),
                 # https://docs.llamaindex.ai/en/stable/module_guides/loading/simpledirectoryreader.html#reading-from-subdirectories
