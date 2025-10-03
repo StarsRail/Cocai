@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import logging
 import os
+from typing import Optional
 
 import chainlit as cl
 import nest_asyncio
@@ -217,8 +218,11 @@ async def factory():
     )
 
 
-def __prepare_memory(key):
+def __prepare_memory(key) -> Optional[Mem0Memory]:
     logger = logging.getLogger("prepare_memory")
+    if os.environ.get("DISABLE_MEMORY", "0") == "1":
+        logger.info("Memory is disabled.")
+        return None
     if api_key := os.environ.get("MEM0_API_KEY", None):
         logger.info("Using Mem0 API.")
         memory = Mem0Memory.from_client(
