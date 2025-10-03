@@ -64,6 +64,7 @@ class MinioStorageClient(BaseStorageClient):
         data: Union[bytes, str],
         mime: str = "application/octet-stream",
         overwrite: bool = True,
+        content_disposition: str | None = None,
     ) -> Dict[str, Any]:
         try:
             self.client.put_object(
@@ -74,6 +75,17 @@ class MinioStorageClient(BaseStorageClient):
         except Exception as e:
             logger.warn(f"MinioStorageClient, upload_file error: {e}")
             return {}
+
+    async def delete_file(self, object_key: str) -> bool:
+        try:
+            self.client.delete_object(Bucket=self.bucket, Key=object_key)
+            return True
+        except Exception as e:
+            logger.warn(f"MinioStorageClient, delete_file error: {e}")
+            return False
+
+    async def close(self) -> None:
+        pass
 
     async def get_read_url(self, object_key: str) -> str:
         return ""
