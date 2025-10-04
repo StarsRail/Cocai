@@ -210,12 +210,22 @@
             val.className = 'muted';
             val.textContent = v;
             right.appendChild(val);
-            // const btn = document.createElement('button');
-            // btn.textContent = 'Roll';
-            // btn.addEventListener('click', async ()=>{
-            //   // TODO: Clicking on the "Roll" button should send a message to the chatbox saying "Roll a skill check of [...]." on the player's behalf.
-            // });
-            // right.appendChild(btn);
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-sm btn-outline-light';
+                btn.textContent = 'Roll';
+                btn.title = `Roll a skill check of ${k}`;
+                btn.addEventListener('click', async () => {
+                  const msg = `Roll a skill check of ${k}.`;
+                  try {
+                    await sendMessageToChat(msg);
+                  } catch (e) {
+                    // As a fallback, try opening the dice window if configured (optional)
+                    // openDiceWindow(`/roll_dice?d10=2`);
+                    console.warn('Failed to send message to chat:', e);
+                    alert('Could not reach the chat composer. Make sure the chat is loaded.');
+                  }
+                });
+                right.appendChild(btn);
             row.appendChild(label);
             row.appendChild(right);
             skills.appendChild(row);
@@ -404,6 +414,222 @@
         renderPC(state.pc);
         listenEvents();
         // Chat handled inside the embedded Chainlit iframe
+      }
+
+      // Helper: send a message into the embedded Chainlit chat iframe
+      async function sendMessageToChat(text) {
+        const iframe = document.querySelector('#chat iframe');
+        if (!iframe) throw new Error('Chat iframe not found');
+
+        // Wait until iframe document is ready
+        const doc = await waitForIframeDocument(iframe, 8000);
+        if (!doc) throw new Error('Chat iframe not ready');
+
+        // Try to locate the composer input and a send button
+        const { textbox, sendButton } = await findComposerElements(doc, 8000);
+        if (!textbox && !sendButton) throw new Error('Chat composer not found');
+
+        // Set the message text into the composer
+        if (textbox) await setTextIntoComposer(textbox, text);
+
+        // If there is a send button, wait for it to become enabled; if it doesn't, try nudges
+        if (sendButton) {
+          const enabled = await waitFor(() => isButtonEnabled(sendButton), 2000, 120);
+          if (!enabled && textbox) {
+            await nudgeComposer(textbox, text);
+            // After nudging, wait a bit more
+            await waitFor(() => isButtonEnabled(sendButton), 1500, 120);
+          }
+        }
+
+        // Prefer clicking send button if present; otherwise simulate Enter in the textbox
+        let sent = false;
+        if (sendButton) {
+          try { sendButton.click(); sent = true; } catch {}
+        }
+        if (!sent && textbox) {
+          try {
+            simulateEnterKey(textbox);
+            sent = true;
+          } catch {}
+        }
+        if (!sent) throw new Error('Unable to dispatch send action');
+      }
+
+      function waitForIframeDocument(iframe, timeoutMs = 8000) {
+        return new Promise((resolve) => {
+          const start = Date.now();
+          const tick = () => {
+            try {
+              const doc = iframe.contentDocument || iframe.contentWindow?.document;
+              if (doc && doc.readyState !== 'loading') {
+                resolve(doc);
+                return;
+              }
+            } catch (_) { /* cross-origin or not ready */ }
+            if (Date.now() - start > timeoutMs) return resolve(null);
+            setTimeout(tick, 150);
+          };
+          tick();
+        });
+      }
+
+      async function findComposerElements(doc, timeoutMs = 8000) {
+        const start = Date.now();
+        const isVisible = (el) => !!el && el.offsetParent !== null;
+        const pick = (list) => Array.from(list || []).find(isVisible) || null;
+        while (Date.now() - start <= timeoutMs) {
+          try {
+            // Candidate selectors for the text input
+            const textCandidates = [
+              'textarea',
+              'div[role="textbox"]',
+              '[contenteditable="true"]',
+              'textarea[placeholder]',
+              'textarea[aria-label]',
+            ];
+            let textbox = null;
+            for (const sel of textCandidates) {
+              const el = pick(doc.querySelectorAll(sel));
+              if (el) { textbox = el; break; }
+            }
+
+            // Candidate selectors for a send button
+            const btnCandidates = [
+              'button[title="Send"]',
+              'button[aria-label="Send"]',
+              'button[type="submit"]',
+              'button:has(svg[aria-label="send"])',
+              'button:has(svg[aria-label*="send"])',
+              'button:has(svg[title*="send"])',
+            ];
+            let sendButton = null;
+            for (const sel of btnCandidates) {
+              const el = pick(doc.querySelectorAll(sel));
+              if (el) { sendButton = el; break; }
+            }
+
+            if (textbox || sendButton) return { textbox, sendButton };
+          } catch (_) { /* ignore transient errors while app hydrates */ }
+          await new Promise(r => setTimeout(r, 200));
+        }
+        return { textbox: null, sendButton: null };
+      }
+
+      async function setTextIntoComposer(inputEl, text) {
+        if (!inputEl) return;
+        const isContentEditable = inputEl.getAttribute && inputEl.getAttribute('contenteditable') === 'true';
+        if (isContentEditable) {
+          inputEl.focus();
+          // Prefer execCommand to mimic real typing for frameworks
+          try {
+            const sel = inputEl.ownerDocument.getSelection();
+            if (sel) {
+              sel.removeAllRanges();
+              const range = inputEl.ownerDocument.createRange();
+              range.selectNodeContents(inputEl);
+              sel.addRange(range);
+            }
+            if (document.queryCommandSupported && document.execCommand) {
+              document.execCommand('insertText', false, text);
+            } else {
+              inputEl.textContent = text;
+            }
+          } catch {
+            inputEl.textContent = text;
+          }
+          dispatchInputEvent(inputEl, { inputType: 'insertFromPaste', data: text });
+        } else {
+          inputEl.focus();
+          // Use native setter so React/Vue listeners get notified properly
+          const tag = (inputEl.tagName || '').toUpperCase();
+          const proto = tag === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+          const valueSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          if (valueSetter) valueSetter.call(inputEl, text); else inputEl.value = text;
+          dispatchInputEvent(inputEl, { inputType: 'insertFromPaste', data: text });
+          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        // Allow frameworks to sync internal state
+        await new Promise(r => setTimeout(r, 50));
+      }
+
+      function simulateEnterKey(el) {
+        const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true };
+        el.dispatchEvent(new KeyboardEvent('keydown', opts));
+        el.dispatchEvent(new KeyboardEvent('keypress', opts));
+        el.dispatchEvent(new KeyboardEvent('keyup', opts));
+      }
+
+      function dispatchInputEvent(el, { inputType = 'insertText', data = '' } = {}) {
+        try {
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, cancelable: true, inputType, data }));
+        } catch {
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+
+      function isButtonEnabled(btn) {
+        if (!btn) return false;
+        if (btn.disabled) return false;
+        const aria = btn.getAttribute('aria-disabled');
+        if (aria === 'true') return false;
+        const cls = btn.className || '';
+        if (/\bdisabled\b/.test(cls)) return false;
+        return true;
+      }
+
+      function waitFor(predicate, timeoutMs = 1000, intervalMs = 100) {
+        return new Promise((resolve) => {
+          const start = Date.now();
+          const tick = () => {
+            try {
+              if (predicate()) return resolve(true);
+            } catch { /* ignore */ }
+            if (Date.now() - start > timeoutMs) return resolve(false);
+            setTimeout(tick, intervalMs);
+          };
+          tick();
+        });
+      }
+
+      async function nudgeComposer(inputEl, finalText) {
+        // A series of small actions to wake up reactive listeners
+        try { inputEl.focus(); } catch {}
+        await new Promise(r => setTimeout(r, 30));
+
+        const isContentEditable = inputEl.getAttribute && inputEl.getAttribute('contenteditable') === 'true';
+        if (isContentEditable) {
+          // Type a space then delete it
+          try {
+            document.execCommand && document.execCommand('insertText', false, finalText + ' ');
+          } catch {
+            inputEl.textContent = (inputEl.textContent || '') + ' ';
+          }
+          dispatchInputEvent(inputEl, { inputType: 'insertText', data: ' ' });
+          await new Promise(r => setTimeout(r, 40));
+          // Remove the space
+          try { document.execCommand && document.execCommand('delete'); } catch {
+            inputEl.textContent = (inputEl.textContent || '').replace(/\s$/, '');
+          }
+          dispatchInputEvent(inputEl, { inputType: 'deleteContentBackward', data: '' });
+        } else {
+          const tag = (inputEl.tagName || '').toUpperCase();
+          const proto = tag === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+          const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          const curr = inputEl.value || finalText || '';
+          if (setter) setter.call(inputEl, curr + ' '); else inputEl.value = curr + ' ';
+          dispatchInputEvent(inputEl, { inputType: 'insertText', data: ' ' });
+          await new Promise(r => setTimeout(r, 40));
+          if (setter) setter.call(inputEl, finalText); else inputEl.value = finalText;
+          dispatchInputEvent(inputEl, { inputType: 'deleteContentBackward', data: '' });
+          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        // Blur and refocus to force validations
+        try { inputEl.blur(); } catch {}
+        await new Promise(r => setTimeout(r, 30));
+        try { inputEl.focus(); } catch {}
+        await new Promise(r => setTimeout(r, 30));
       }
 
       init();
