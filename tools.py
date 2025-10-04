@@ -108,11 +108,11 @@ class ToolForSuggestingChoices:
         Note: This tool can only be used when the game is in progress. This is not a tool for meta-tasks like character creation.
         """
         prompt = self.__prompt.format(situation=situation)
-        return Settings.llm.complete(prompt)
+        return Settings.llm.complete(prompt).text
 
 
 class ToolForConsultingTheModule:
-    query_engine: BaseQueryEngine = None
+    query_engine: Optional[BaseQueryEngine] = None
 
     def __init__(
         self,
@@ -173,7 +173,15 @@ class ToolForConsultingTheModule:
 
         you can use this tool.
         """
-        return self.query_engine.query(query).response or ""
+        logger = logging.getLogger("consult_the_game_module")
+        if not self.query_engine:
+            return ""
+        try:
+            response = self.query_engine.query(query)
+            return response.response or ""
+        except Exception as e:
+            logger.error(f"Error occurred while consulting the game module: {e}")
+            return ""
 
 
 def roll_a_dice(
