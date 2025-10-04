@@ -151,20 +151,24 @@ def set_up_llama_index():
     # Override the default system prompt for ReAct chats.
     with open("prompts/system_prompt.md") as f:
         MY_SYSTEM_PROMPT = f.read()
-    logger.info("Pre-reading the game module...")
-    game_module_summary = tool_for_consulting_the_module.call(
-        "Story background, character requirements, and keeper's notes."
-    ).content
-    logger.info("Finished pre-reading the game module.")
-    my_system_prompt = "\n\n".join(
-        [
-            MY_SYSTEM_PROMPT,
-            "A brief description of the game module you are hosting is as follows:",
-            "--------- BEGINNING OF GAME MODULE DESCRIPTION ---------",
-            game_module_summary,
-            "--------- END OF GAME MODULE DESCRIPTION ---------",
-        ]
-    )
+    if os.environ.get("SHOULD_PREREAD_GAME_MODULE", "0") == "1":
+        logger.info("Pre-reading the game module...")
+        game_module_summary = tool_for_consulting_the_module.call(
+            "Story background, character requirements, and keeper's notes."
+        ).content
+        logger.info("Finished pre-reading the game module.")
+        my_system_prompt = "\n\n".join(
+            [
+                MY_SYSTEM_PROMPT,
+                "A brief description of the game module you are hosting is as follows:",
+                "--------- BEGINNING OF GAME MODULE DESCRIPTION ---------",
+                game_module_summary,
+                "--------- END OF GAME MODULE DESCRIPTION ---------",
+            ]
+        )
+    else:
+        logger.info("Skipping pre-reading the game module.")
+        my_system_prompt = MY_SYSTEM_PROMPT
     # Needed for "Retrieved the following sources" to show up on Chainlit.
     # This procedure will register Chainlit's callback manager, which will require Chainlit's context variables to
     # be ready before receiving an event, so it should be called AFTER calling the tool.
