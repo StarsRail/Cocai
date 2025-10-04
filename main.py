@@ -3,7 +3,6 @@ import logging
 import os
 
 import chainlit as cl
-import nest_asyncio
 from llama_index.core import Settings
 from llama_index.core.agent.workflow import AgentStream, FunctionAgent
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
@@ -31,11 +30,6 @@ from utils import set_up_data_layer
 logger = logging.getLogger(__name__)
 
 set_up_data_layer()
-
-# This is needed to avoid the error "RuntimeError: Cannot set up the event loop when in a different thread".
-# This may happen when we use Mem0. I haven't seen this error myself, but the official documentation suggests this.
-# https://docs.llamaindex.ai/en/stable/examples/memory/Mem0Memory/#mem0-for-function-calling-agents
-nest_asyncio.apply()
 
 try:
     # "Phoenix can display in real time the traces automatically collected from your LlamaIndex application."
@@ -176,9 +170,6 @@ def set_up_llama_index():
     return all_tools, my_system_prompt
 
 
-all_tools, my_system_prompt = set_up_llama_index()
-
-
 @cl.set_starters
 async def set_starters(user=None, default_path: str | None = None):
     return [
@@ -207,6 +198,8 @@ async def set_starters(user=None, default_path: str | None = None):
 
 @cl.on_chat_start
 async def factory():
+    # Build LLMs/tools and prompts per session to avoid global background resources
+    all_tools, my_system_prompt = set_up_llama_index()
     # Each chat session should have his own agent runner, because each chat session has different chat histories.
     key = cl.user_session.get("id")
     agent_memory = __prepare_memory(key)
