@@ -184,7 +184,7 @@ all_tools, my_system_prompt = set_up_llama_index()
 
 
 @cl.set_starters
-async def set_starters():
+async def set_starters(user=None, default_path: str | None = None):
     return [
         cl.Starter(
             label="Roll a 7-faced dice. Outcome?",
