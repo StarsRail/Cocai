@@ -3,8 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cocai Play</title>
+  <title>Cocai Play</title>
+    <!-- Bootstrap CSS via CDN for faster prototyping and consistent UI -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+      /* Viewport-sized app shell with no body scrollbars */
+      html, body { height: 100%; }
+      html { box-sizing: border-box; }
+      *, *::before, *::after { box-sizing: inherit; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        overflow: hidden; /* no page scrollbars; panes will scroll internally */
+      }
       :root {
         --bg: #0e0e10;
         --panel: #17171a;
@@ -14,102 +25,108 @@
         --primary: #7c5cff;
         --border: #2a2a31;
       }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        color: var(--text);
-        background: linear-gradient(180deg, #0b0b0d 0%, #0e0e10 100%);
-        height: 100vh;
-        display: grid;
-        grid-template-columns: 280px 1fr 320px;
-        grid-template-rows: 100vh;
-        gap: 10px;
-        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      }
-      aside, main, section {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        overflow: hidden;
-      }
-      /* Left sidebar */
-      #left { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; padding: 8px; background: transparent; border: none; }
-      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
-      .card header { padding: 10px 12px; font-weight: 600; background: var(--panel-2); border-bottom: 1px solid var(--border); letter-spacing: 0.3px; }
-      .card .content { padding: 12px; overflow: auto; }
+      body { background: linear-gradient(180deg, #0b0b0d 0%, #0e0e10 100%); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+      /* Keep small component styles while allowing Bootstrap to handle layout */
+      .panel-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+      .panel-card .card-header { background: var(--panel-2); border-bottom: 1px solid var(--border); font-weight: 600; }
       .muted { color: var(--muted); }
-      /* Clues accordion */
-      .accordion { display: flex; flex-direction: column; gap: 8px; }
+      .placeholder { color: var(--muted); font-style: italic; padding: 6px 2px; }
+      #illustration { background: radial-gradient(80% 70% at 50% 30%, #1b1b21, #121216 70%); display:flex; align-items:center; justify-content:center; }
+      #illustration img { max-width:100%; max-height:100%; object-fit:contain; }
+  /* Accordion overrides (kept simple) */
       .acc-item { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #141418; }
-      .acc-summary { width: 100%; text-align: left; padding: 10px 12px; background: #18181d; color: var(--text); border: none; outline: none; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-      .acc-summary:hover { background: #1c1c22; }
-      .acc-body { padding: 10px 12px; display: none; color: var(--muted); border-top: 1px solid var(--border); }
-      .acc-item.open .acc-body { display: block; }
-      .tag { display: inline-block; padding: 2px 8px; font-size: 11px; color: #c9d1ff; background: rgba(124,92,255,0.12); border: 1px solid rgba(124,92,255,0.35); border-radius: 999px; margin-left: 8px; }
-      /* Main */
-      main { display: grid; grid-template-rows: 56% 44%; }
-      #illustration { position: relative; background: radial-gradient(80% 70% at 50% 30%, #1b1b21, #121216 70%); display: flex; align-items: center; justify-content: center; }
-      #illustration img { max-width: 100%; max-height: 100%; object-fit: contain; }
-      #chat { border-top: 1px solid var(--border); background: var(--panel); display: grid; grid-template-rows: 1fr auto; }
-      #chat-log { padding: 12px; overflow: auto; }
-      .msg { margin-bottom: 10px; }
-      .msg .who { font-weight: 700; margin-right: 6px; color: #cbd5ff; }
-      #chat-input { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--border); }
-      #chat-input input { flex: 1; padding: 10px 12px; background: #121216; color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
-      #chat-input button { padding: 10px 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
-      #chat-input button:hover { filter: brightness(1.05); }
-      /* Right sidebar */
-      #right { display: grid; grid-template-rows: auto auto 1fr; }
-      #pc-header { padding: 12px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
-      #pc-name { font-size: 20px; font-weight: 700; }
-      #pc-stats { padding: 10px 12px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-      .stat { background: #141418; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; }
-      #skills { padding: 10px; border-top: 1px solid var(--border); overflow: auto; display: grid; grid-template-columns: 1fr; gap: 8px; }
-      .skill { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #141418; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
-      .skill button { background: #2a2a35; color: #f2f2f7; border: 1px solid #3a3a46; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
-      .skill button:hover { background: #343444; }
-  .skill button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.5); }
-  .placeholder { color: var(--muted); font-style: italic; padding: 6px 2px; }
-      /* Responsive */
-      @media (max-width: 1200px) {
-        body { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
-        #left, #right { order: 1; }
-        main { order: 0; min-height: 60vh; }
+  .acc-summary { width: 100%; text-align: left; padding: 10px 12px; background: #18181d; color: var(--text); border: none; outline: none; cursor: pointer; font-weight: 600; display:flex; justify-content:space-between; align-items:center; }
+  .acc-body { padding: 10px 12px; color:var(--muted); border-top:1px solid var(--border); }
+  .acc-item .btn-toggle:focus { outline: 2px solid rgba(124,92,255,0.35); outline-offset: 2px; }
+      .tag { display:inline-block; padding:2px 8px; font-size:11px; color:#c9d1ff; background:rgba(124,92,255,0.12); border:1px solid rgba(124,92,255,0.35); border-radius:999px; margin-left:8px; }
+      /* IDE-like layout using Split.js */
+  .app-root { height: 100vh; width: 100vw; display: flex; padding: 8px; }
+      .column { height: 100%; min-width: 160px; overflow: hidden; display: flex; flex-direction: column; }
+  .split-vertical { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+      .pane { min-height: 0; display: flex; flex-direction: column; }
+      .pane.scrollable { overflow: auto; }
+      .panel-card.fill { height: 100%; display: flex; flex-direction: column; }
+      .panel-card .panel-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+      /* Gutters for Split.js */
+      .gutter { background: var(--border); opacity: 0.9; background-clip: padding-box; }
+      .gutter.gutter-horizontal { width: 6px; cursor: col-resize; }
+      .gutter.gutter-vertical { height: 6px; cursor: row-resize; }
+      /* Make gutters a bit easier to grab */
+      .gutter.gutter-horizontal:hover,
+      .gutter.gutter-vertical:hover { background: #3a3a44; }
+
+      /* Ensure images/iframes fit inside panes */
+      #illustration, #chat { height: 100%; }
+      #chat iframe { width: 100%; height: 100%; display: block; }
+
+      /* Responsive: collapse side columns on narrow screens */
+      @media (max-width: 1000px) {
+        #col-left, #col-right { display: none; }
+        .gutter.gutter-horizontal { display: none !important; }
       }
+
     </style>
   </head>
   <body>
-    <aside id="left">
-      <section class="card" id="history-card">
-        <header>History</header>
-        <div class="content">
-          <div id="history" class="muted"></div>
+    <div id="app" class="app-root">
+      <!-- Left column: History / Clues (resizable vertically) -->
+      <div id="col-left" class="column">
+        <div id="left-split" class="split-vertical">
+          <section id="left-history" class="pane">
+            <div class="panel-card fill">
+              <div class="card-header">History</div>
+              <div class="panel-body p-3">
+                <div id="history" class="muted"></div>
+              </div>
+            </div>
+          </section>
+          <section id="left-clues" class="pane">
+            <div class="panel-card fill">
+              <div class="card-header">Clues</div>
+              <div class="panel-body p-3">
+                <div id="clues" class="accordion"></div>
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
-      <section class="card" id="clues-card">
-        <header>Clues</header>
-        <div class="content">
-          <div id="clues" class="accordion"></div>
-        </div>
-      </section>
-    </aside>
-    <main>
-      <section id="illustration">
-        <img id="scene-image" alt="Scene illustration" />
-      </section>
-      <section id="chat" style="padding:0;">
-        <iframe src="/chat" title="Cocai Chat" style="width:100%; height:100%; border:0;"></iframe>
-      </section>
-    </main>
-    <aside id="right">
-      <div id="pc-header">
-        <div id="pc-name">Investigator</div>
       </div>
-      <div id="pc-stats"></div>
-      <div id="skills"></div>
-    </aside>
 
-    <script>
+      <!-- Center column: Illustration / Chat (resizable vertically) -->
+      <div id="col-center" class="column">
+        <div id="center-split" class="split-vertical">
+          <section id="illustration" class="panel-card fill">
+            <img id="scene-image" alt="Scene illustration" />
+          </section>
+          <section id="chat" class="panel-card fill p-0">
+            <iframe src="/chat" title="Cocai Chat"></iframe>
+          </section>
+        </div>
+      </div>
+
+      <!-- Right column: PC panel with resizable Stats / Skills -->
+      <div id="col-right" class="column">
+        <aside id="right" class="panel-card fill p-0" style="display:flex; flex-direction:column;">
+          <div id="pc-header" class="card-header">
+            <div id="pc-name">Investigator</div>
+          </div>
+          <div id="right-split" class="split-vertical" style="flex:1 1 auto; min-height:0;">
+            <div id="right-stats-pane" class="pane scrollable">
+              <div id="pc-stats" class="p-3"></div>
+            </div>
+            <div id="right-skills-pane" class="pane scrollable" style="border-top:1px solid var(--border);">
+              <div id="skills" class="p-3"></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+  <!-- Bootstrap JS (includes Popper) for collapse/interactive components -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/split.js@1.6.0/dist/split.min.js"></script>
+
+  <script>
       async function fetchState() {
         const res = await fetch('/api/state');
         if (!res.ok) return null;
@@ -123,17 +140,33 @@
       function renderClues(clues) {
         const container = document.getElementById('clues');
         container.innerHTML = '';
-        (clues || []).forEach(c => {
+        (clues || []).forEach((c, idx) => {
+          const id = `clue-${idx}`;
           const item = document.createElement('div');
-          item.className = 'acc-item';
+          item.className = 'acc-item mb-2';
+
+          // Button that controls the Bootstrap collapse
           const btn = document.createElement('button');
-          btn.className = 'acc-summary';
+          btn.className = 'acc-summary btn btn-toggle';
+          btn.setAttribute('type', 'button');
+          btn.setAttribute('data-bs-toggle', 'collapse');
+          btn.setAttribute('data-bs-target', `#${id}`);
+          btn.setAttribute('aria-expanded', 'false');
+          btn.setAttribute('aria-controls', id);
           btn.innerHTML = `<span>${c.title}</span><span class="tag">${c.found_at || 'Unknown'}</span>`;
+
+          const bodyWrap = document.createElement('div');
+          bodyWrap.className = 'collapse acc-body';
+          bodyWrap.id = id;
+          bodyWrap.setAttribute('role', 'region');
+          bodyWrap.setAttribute('aria-labelledby', id + '-label');
           const body = document.createElement('div');
-          body.className = 'acc-body';
+          body.id = id + '-label';
           body.textContent = c.content;
-          btn.addEventListener('click', () => item.classList.toggle('open'));
-          item.appendChild(btn); item.appendChild(body);
+          bodyWrap.appendChild(body);
+
+          item.appendChild(btn);
+          item.appendChild(bodyWrap);
           container.appendChild(item);
         });
       }
@@ -219,7 +252,150 @@
         } catch (e) { /* ignore if SSE not available */ }
       }
 
+      function initLayout() {
+        const getSizes = (key, fallback) => {
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) return fallback;
+            const arr = JSON.parse(raw);
+            return Array.isArray(arr) && arr.length ? arr : fallback;
+          } catch { return fallback; }
+        };
+        const saveSizes = (key, inst) => (sizes) => {
+          try { localStorage.setItem(key, JSON.stringify(sizes)); } catch {}
+        };
+
+        // Shared helper to create a Split with persistence
+        function createSplit({ ids, direction = 'horizontal', key, defaults, minSize, gutterSize = 6, snapOffset = 8, container }) {
+          const sizes = getSizes(key, defaults);
+          const inst = Split(ids, {
+            direction,
+            sizes,
+            minSize,
+            gutterSize,
+            snapOffset,
+            onDragEnd: saveSizes(key),
+          });
+
+          // Accessibility + keyboard support for gutters
+          makeGuttersAccessible({ container, direction, split: inst, key, defaults });
+          return inst;
+        }
+
+        function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+
+        function makeGuttersAccessible({ container, direction, split, key, defaults }) {
+          if (!container) return;
+          const isHorizontal = direction !== 'vertical';
+          const stepPct = 3; // resize step per keypress (in % of container)
+          const gutters = container.querySelectorAll('.gutter' + (isHorizontal ? '.gutter-horizontal' : '.gutter-vertical'));
+          gutters.forEach((g, index) => {
+            g.setAttribute('tabindex', '0');
+            g.setAttribute('role', 'separator');
+            g.setAttribute('aria-orientation', isHorizontal ? 'vertical' : 'horizontal');
+            g.setAttribute('aria-label', 'Resize ' + (isHorizontal ? 'columns' : 'panes'));
+
+            // Double-click to reset
+            g.addEventListener('dblclick', () => {
+              split.setSizes(defaults);
+              try { localStorage.setItem(key, JSON.stringify(defaults)); } catch {}
+            });
+
+            // Arrow keys to move this gutter
+            g.addEventListener('keydown', (ev) => {
+              const code = ev.key;
+              const isDec = (isHorizontal && code === 'ArrowLeft') || (!isHorizontal && code === 'ArrowUp');
+              const isInc = (isHorizontal && code === 'ArrowRight') || (!isHorizontal && code === 'ArrowDown');
+              if (!isDec && !isInc) return;
+              ev.preventDefault();
+              const sizes = split.getSizes();
+              // This gutter is between index and index+1
+              const i = index;
+              const delta = isInc ? stepPct : -stepPct;
+              const left = clamp(sizes[i] + delta, 0, 100);
+              const right = clamp(sizes[i + 1] - delta, 0, 100);
+              const newSizes = sizes.slice();
+              newSizes[i] = left;
+              newSizes[i + 1] = right;
+              // Normalize if sum drifted
+              const sum = newSizes.reduce((a, b) => a + b, 0);
+              if (sum !== 100) {
+                const factor = 100 / sum;
+                for (let k = 0; k < newSizes.length; k++) newSizes[k] = newSizes[k] * factor;
+              }
+              split.setSizes(newSizes);
+              try { localStorage.setItem(key, JSON.stringify(newSizes)); } catch {}
+            });
+          });
+        }
+
+        // Create splits
+        let hSplit = createSplit({
+          ids: ['#col-left', '#col-center', '#col-right'],
+          direction: 'horizontal',
+          key: 'split-horizontal',
+          defaults: [22, 53, 25],
+          minSize: [180, 320, 220],
+          container: document.getElementById('app'),
+        });
+
+        const lSplit = createSplit({
+          ids: ['#left-history', '#left-clues'],
+          direction: 'vertical',
+          key: 'split-left',
+          defaults: [50, 50],
+          minSize: [120, 120],
+          container: document.getElementById('left-split'),
+        });
+
+        const cSplit = createSplit({
+          ids: ['#illustration', '#chat'],
+          direction: 'vertical',
+          key: 'split-center',
+          defaults: [40, 60],
+          minSize: [140, 240],
+          container: document.getElementById('center-split'),
+        });
+
+        const rSplit = createSplit({
+          ids: ['#right-stats-pane', '#right-skills-pane'],
+          direction: 'vertical',
+          key: 'split-right',
+          defaults: [45, 55],
+          minSize: [120, 140],
+          container: document.getElementById('right-split'),
+        });
+
+        // Toggle horizontal split for small screens (matches CSS @media)
+        function toggleHorizontalSplit() {
+          const narrow = window.innerWidth <= 1000;
+          const left = document.getElementById('col-left');
+          const right = document.getElementById('col-right');
+          if (narrow) {
+            // Ensure split instance is destroyed so it stops sizing hidden panes
+            if (hSplit && typeof hSplit.destroy === 'function') {
+              try { hSplit.destroy(); } catch {}
+              hSplit = null;
+            }
+          } else {
+            if (!hSplit) {
+              hSplit = createSplit({
+                ids: ['#col-left', '#col-center', '#col-right'],
+                direction: 'horizontal',
+                key: 'split-horizontal',
+                defaults: [22, 53, 25],
+                minSize: [180, 320, 220],
+                container: document.getElementById('app'),
+              });
+            }
+          }
+        }
+        toggleHorizontalSplit();
+        window.addEventListener('resize', () => { toggleHorizontalSplit(); });
+      }
+
       async function init() {
+        initLayout();
         const state = await fetchState();
         if (!state) return;
         renderHistory(state.history);
