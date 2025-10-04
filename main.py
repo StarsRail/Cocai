@@ -45,16 +45,6 @@ except Exception as e:
     logger.warn(f"Failed to register Phoenix OpenTelemetry instrumentation: {e}")
 
 
-@cl.password_auth_callback
-async def auth_callback(username: str, password: str):
-    # Fetch the user matching username from your database
-    # and compare the hashed password with the value stored in the database
-    if (username, password) == ("admin", "admin"):
-        return cl.User(identifier="admin", metadata={"role": "admin"})
-    else:
-        return None
-
-
 def create_callback_manager() -> CallbackManager:
     # Phoenix can display in real time the traces automatically collected from your LlamaIndex application.
     # The one-click way is as follows:
