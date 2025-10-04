@@ -23,9 +23,6 @@ CREATE TABLE IF NOT EXISTS steps (
     "type" TEXT NOT NULL,
     "threadId" UUID NOT NULL,
     "parentId" UUID,
-    -- "disableFeedback" may be NULL now.
-    -- https://docs.chainlit.io/guides/migration/1.1.400#disable-feedback-is-gone
-    "disableFeedback" BOOLEAN,
     "streaming" BOOLEAN NOT NULL,
     "waitForAnswer" BOOLEAN,
     "isError" BOOLEAN,
@@ -34,12 +31,15 @@ CREATE TABLE IF NOT EXISTS steps (
     "input" TEXT,
     "output" TEXT,
     "createdAt" TEXT,
+    "command" TEXT,
     "start" TEXT,
     "end" TEXT,
     "generation" JSONB,
     "showInput" TEXT,
     "language" TEXT,
-    "indent" INT
+    "indent" INT,
+    "defaultOpen" BOOLEAN,
+    FOREIGN KEY ("threadId") REFERENCES threads("id") ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS elements (
@@ -55,7 +55,9 @@ CREATE TABLE IF NOT EXISTS elements (
     "page" INT,
     "language" TEXT,
     "forId" UUID,
-    "mime" TEXT
+    "mime" TEXT,
+    "props" JSONB,
+    FOREIGN KEY ("threadId") REFERENCES threads("id") ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS feedbacks (
@@ -63,5 +65,6 @@ CREATE TABLE IF NOT EXISTS feedbacks (
     "forId" UUID NOT NULL,
     "threadId" UUID NOT NULL,
     "value" INT NOT NULL,
-    "comment" TEXT
+    "comment" TEXT,
+    FOREIGN KEY ("threadId") REFERENCES threads("id") ON DELETE CASCADE
 );

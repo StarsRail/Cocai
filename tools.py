@@ -22,6 +22,7 @@ from llama_index.core import (
 )
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from llama_index.core.tools import FunctionTool
+from llama_index.core.workflow import Context
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import BaseModel, Field
 
@@ -263,7 +264,8 @@ def __map_dice_outcome_to_degree_of_success(
     return DegreesOfSuccess.FAIL
 
 
-def roll_a_skill(
+async def roll_a_skill(
+    ctx: Context,
     skill_value: int = Field(description="skill value", ge=0, le=100),
     difficulty: Difficulty = Field(
         description="difficulty level", default=Difficulty.REGULAR
@@ -272,6 +274,8 @@ def roll_a_skill(
     """
     Roll a skill check and check the result.
     """
+    logger = logging.getLogger("roll_a_skill")
+    # Roll the dice.
     dice_outcome = random.randint(1, 100)
     tenth_digit = dice_outcome // 10
     if tenth_digit == 0:
@@ -279,19 +283,27 @@ def roll_a_skill(
     ones_digit = dice_outcome % 10
     if ones_digit == 0:
         ones_digit = 10
-    message = cl.Message(
-        content="",
-        author="roll_a_skill",
-        elements=[
-            cl.Pdf(
-                name="fake-pdf",
-                display="inline",
-                url=f"/roll_dice?d10={tenth_digit}&d10={ones_digit}",
-            )
-        ],
-    )
-    cl.run_sync(message.send())
 
+    # Send a fake PDF with the dice-rolling scene.
+    try:
+        scene = cl.Pdf(
+            name="fake-pdf",
+            display="inline",
+            url=f"/roll_dice?d10={tenth_digit}&d10={ones_digit}",
+            # Prevent the default factory from being triggered by giving it a value explicitly.
+            thread_id=await ctx.store.get("user_message_thread_id", "unknown"),
+        )
+        message = cl.Message(
+            content="",
+            author="roll_a_skill",
+            elements=[scene],
+            parent_id=await ctx.store.get("user_message_id", None),
+        )
+        await message.send()
+    except Exception as e:
+        logger.error(f"Failed to send the scene: {e}")
+
+    # Describe the result.
     result = __map_dice_outcome_to_degree_of_success(
         difficulty, dice_outcome, int(skill_value)
     )

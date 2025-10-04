@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 import logging
 import os
-from typing import Optional
 
 import chainlit as cl
 import nest_asyncio
 from llama_index.core import Settings
-from llama_index.core.agent import AgentRunner, FunctionCallingAgent
+from llama_index.core.agent.workflow import FunctionAgent
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
+from llama_index.core.memory import Memory
 from llama_index.core.tools import FunctionTool
+from llama_index.core.workflow import Context
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.memory.mem0 import Mem0Memory
 from llama_index.tools.tavily_research import TavilyToolSpec
@@ -77,6 +78,7 @@ def set_up_llama_index():
     """
     One-time setup code for shared objects across all AgentRunners.
     """
+    logger = logging.getLogger("set_up_llama_index")
     # ============= Beginning of the code block for wiring on to models. =============
     # At least when Chainlit is involved, LLM initializations must happen upon the `@cl.on_chat_start` event,
     # not in the global scope.
@@ -136,33 +138,29 @@ def set_up_llama_index():
         ToolForConsultingTheModule().consult_the_game_module,
     )
     all_tools = tavily_tool + [
-        FunctionTool.from_defaults(
-            ToolForSuggestingChoices().suggest_choices,
-        ),
+        ToolForSuggestingChoices().suggest_choices,
         tool_for_consulting_the_module,
-        FunctionTool.from_defaults(
-            roll_a_dice,
-        ),
-        FunctionTool.from_defaults(
-            roll_a_skill,
-        ),
-        FunctionTool.from_defaults(
-            illustrate_a_scene,
-        ),
+        roll_a_dice,
+        roll_a_skill,
+        illustrate_a_scene,
         tool_for_creating_character,
     ]
     # # ============= End of the code block for building tools. =============
     # Override the default system prompt for ReAct chats.
     with open("prompts/system_prompt.md") as f:
         MY_SYSTEM_PROMPT = f.read()
+    logger.info("Pre-reading the game module...")
     game_module_summary = tool_for_consulting_the_module.call(
         "Story background, character requirements, and keeper's notes."
     ).content
+    logger.info("Finished pre-reading the game module.")
     my_system_prompt = "\n\n".join(
         [
             MY_SYSTEM_PROMPT,
             "A brief description of the game module you are hosting is as follows:",
+            "--------- BEGINNING OF GAME MODULE DESCRIPTION ---------",
             game_module_summary,
+            "--------- END OF GAME MODULE DESCRIPTION ---------",
         ]
     )
     # Needed for "Retrieved the following sources" to show up on Chainlit.
@@ -205,24 +203,32 @@ async def set_starters():
 async def factory():
     # Each chat session should have his own agent runner, because each chat session has different chat histories.
     key = cl.user_session.get("id")
-    memory = __prepare_memory(key)
-    agent_runner = FunctionCallingAgent.from_tools(
+    agent_memory = __prepare_memory(key)
+    agent = FunctionAgent(
         system_prompt=my_system_prompt,
         tools=all_tools,
-        verbose=True,
-        memory=memory,
+        memory=agent_memory,
     )
+    agent_ctx = Context(agent)
     cl.user_session.set(
         "agent",
-        agent_runner,
+        agent,
+    )
+    cl.user_session.set(
+        "agent_ctx",
+        agent_ctx,
+    )
+    cl.user_session.set(
+        "agent_memory",
+        agent_memory,
     )
 
 
-def __prepare_memory(key) -> Optional[Mem0Memory]:
+def __prepare_memory(key) -> Memory | Mem0Memory:
     logger = logging.getLogger("prepare_memory")
     if os.environ.get("DISABLE_MEMORY", "0") == "1":
-        logger.info("Memory is disabled.")
-        return None
+        logger.info("Memory is disabled. Using defaults.")
+        return Memory.from_defaults(session_id="my_session", token_limit=40000)
     if api_key := os.environ.get("MEM0_API_KEY", None):
         logger.info("Using Mem0 API.")
         memory = Mem0Memory.from_client(
@@ -292,7 +298,7 @@ def __prepare_memory(key) -> Optional[Mem0Memory]:
                 "Failed to set up Mem0 memory. LlamaIndex will use default implementation (SimpleChatStore) instead.",
                 exc_info=e,
             )
-            memory = None
+            memory = Memory.from_defaults(session_id="my_session", token_limit=40000)
     return memory
 
 
@@ -303,7 +309,40 @@ async def cleanup():
 
 @cl.on_message
 async def handle_message_from_user(message: cl.Message):
-    agent: AgentRunner = cl.user_session.get("agent")
+    agent_from_session = cl.user_session.get("agent")
+    if agent_from_session is None or not isinstance(agent_from_session, FunctionAgent):
+        await cl.Message(
+            content="Agent not found. Please restart the chat session."
+        ).send()
+        return
+    agent: FunctionAgent = agent_from_session
+
+    agent_ctx_from_session = cl.user_session.get("agent_ctx")
+    if agent_ctx_from_session is None or not isinstance(
+        agent_ctx_from_session, Context
+    ):
+        await cl.Message(
+            content="Agent context not found. Please restart the chat session."
+        ).send()
+        return
+    agent_ctx: Context = agent_ctx_from_session
+
+    agent_memory_from_session = cl.user_session.get("agent_memory")
+    if agent_memory_from_session is None or not isinstance(
+        agent_memory_from_session, (Memory, Mem0Memory)
+    ):
+        await cl.Message(
+            content="Agent memory not found. Please restart the chat session."
+        ).send()
+        return
+    agent_memory: Memory | Mem0Memory = agent_memory_from_session
+
+    async with agent_ctx.store.edit_state() as ctx_state:
+        # Save the user message ID and thread ID to the context state, so that tools can use them.
+        # Don't use `message` directly, because it is not serializable (by the default serializer of `DictState`, probably).
+        ctx_state["user_message_id"] = message.id
+        ctx_state["user_message_thread_id"] = message.thread_id
+
     # The Chainlit doc recommends using `await cl.make_async(agent.chat)(message.content)` instead:
     # > The make_async function takes a synchronous function (for instance a LangChain agent) and returns an
     # > asynchronous function that will run the original function in a separate thread. This is useful to run
@@ -311,7 +350,8 @@ async def handle_message_from_user(message: cl.Message):
     # (https://docs.chainlit.io/api-reference/make-async#make-async)
     # I thought we can just use `agent.achat` directly, but it would cause `<ContextVar name='chainlit' at 0x...>`.
     # TODO: streaming seems broken. Why?
-    response = await cl.make_async(agent.chat)(message.content)
+
+    response = await agent.run(message.content, context=agent_ctx, memory=agent_memory)
     response_message = cl.Message(content="")
-    response_message.content = response.response
+    response_message.content = str(response)
     await response_message.send()

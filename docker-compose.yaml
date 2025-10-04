@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   qdrant:
-    image: qdrant/qdrant:v1.12.5-unprivileged
+    image: qdrant/qdrant:v1.15.1-unprivileged
     ports:
       - "6333:6333"
       - "6334:6334"
