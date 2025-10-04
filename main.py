@@ -5,7 +5,7 @@ import os
 import chainlit as cl
 import nest_asyncio
 from llama_index.core import Settings
-from llama_index.core.agent.workflow import FunctionAgent
+from llama_index.core.agent.workflow import AgentStream, FunctionAgent
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 from llama_index.core.memory import Memory
 from llama_index.core.tools import FunctionTool
@@ -337,21 +337,15 @@ async def handle_message_from_user(message: cl.Message):
         return
     agent_memory: Memory | Mem0Memory = agent_memory_from_session
 
+    # Save the user message ID and thread ID to the context state, so that tools can use them.
     async with agent_ctx.store.edit_state() as ctx_state:
-        # Save the user message ID and thread ID to the context state, so that tools can use them.
         # Don't use `message` directly, because it is not serializable (by the default serializer of `DictState`, probably).
         ctx_state["user_message_id"] = message.id
         ctx_state["user_message_thread_id"] = message.thread_id
-
-    # The Chainlit doc recommends using `await cl.make_async(agent.chat)(message.content)` instead:
-    # > The make_async function takes a synchronous function (for instance a LangChain agent) and returns an
-    # > asynchronous function that will run the original function in a separate thread. This is useful to run
-    # > long running synchronous tasks without blocking the event loop.
-    # (https://docs.chainlit.io/api-reference/make-async#make-async)
-    # I thought we can just use `agent.achat` directly, but it would cause `<ContextVar name='chainlit' at 0x...>`.
-    # TODO: streaming seems broken. Why?
-
-    response = await agent.run(message.content, context=agent_ctx, memory=agent_memory)
+    # Run the agent.
+    handler = agent.run(message.content, context=agent_ctx, memory=agent_memory)
     response_message = cl.Message(content="")
-    response_message.content = str(response)
-    await response_message.send()
+    async for event in handler.stream_events():
+        if isinstance(event, AgentStream):
+            await response_message.stream_token(event.delta)
+    await response_message.update()
