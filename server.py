@@ -1,16 +1,39 @@
+import logging
+from contextlib import asynccontextmanager
 from itertools import chain, repeat
 from typing import Annotated, List
 
 from chainlit.utils import mount_chainlit
 from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
 
+from events import broadcaster
+from state import STATE
 from utils import set_up_logging
 
 set_up_logging()
-app = FastAPI()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger = logging.getLogger("lifespan")
+    # Startup
+    try:
+        yield
+    finally:
+        # Shutdown: close SSE broadcaster so clients disconnect promptly
+        try:
+            from events import broadcaster
+
+            logger.info("Waiting for broadcaster to shut down...")
+            await broadcaster.close()
+        except Exception as e:
+            logger.error(f"Error during broadcaster shutdown: {e}")
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 # Mount the 'static' directory to serve static files
@@ -49,6 +72,34 @@ async def roll_dice(
     # Render the template with the dice data passed as context
     template = Template(dice_template)
     return template.render(dice_options=dice_data)
+
+
+@app.get("/play", response_class=HTMLResponse)
+async def play_ui():
+    """Serve the new three-column UI."""
+    with open("public/play.html", encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/api/state")
+async def get_state():
+    """Used by the UI to fetch the current game state at page load."""
+    return JSONResponse(STATE.to_dict())
+
+
+@app.get("/api/events")
+async def sse_events():
+    """Server-Sent Events stream for live UI updates. Clients should connect to this endpoint and listen for updates."""
+    q = await broadcaster.subscribe()
+    return StreamingResponse(
+        broadcaster.sse(q),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disable proxy buffering
+        },
+    )
 
 
 mount_chainlit(app=app, target="main.py", path="/chat")

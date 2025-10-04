@@ -26,6 +26,9 @@ from llama_index.core.workflow import Context
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import BaseModel, Field
 
+from events import broadcaster
+from state import STATE, Clue
+
 
 class CreateCharacterRequest(BaseModel):
     year: int = Field(
@@ -84,15 +87,25 @@ class CreateCharacterRequest(BaseModel):
 
 @wraps(cochar.create_character)
 def create_character(*args, **kwargs) -> dict:
+    logger = logging.getLogger("create_character")
     character: Character = cochar.create_character(*args, **kwargs)
-    # TODO: Store the character somewhere.
+    # Persist as the current PC and notify UI via SSE
+    try:
+        STATE.pc = character
+        # Reuse state's serializer to get UI-friendly pc shape
+        from state import STATE as _S  # avoid confusion with local STATE
+
+        pc_payload = _S.to_dict().get("pc", {})
+        broadcaster.publish({"type": "pc", "pc": pc_payload})
+    except Exception as e:
+        logger.error(f"Failed to publish the new PC via SSE: {e}")
     return character.get_json_format()
 
 
 tool_for_creating_character = FunctionTool.from_defaults(
     create_character,
     fn_schema=CreateCharacterRequest,
-    description="Create a character.",
+    description="Create a playable character.",
 )
 
 
@@ -389,4 +402,81 @@ update_a_stat_tool = FunctionTool.from_defaults(
         "Update a character stat by either applying a diff or setting an absolute value. "
         "Exactly one of 'diff' and 'value' must be provided."
     ),
+)
+
+
+# ---- UI-state tools: history, clues, illustration ---------------------------
+
+
+def update_history_excerpt(
+    summary: str = Field(description="Short text summarizing the story so far"),
+) -> str:
+    """
+    Replace the left-pane History text with a short summary.
+    """
+    STATE.history = str(summary)
+    try:
+        broadcaster.publish({"type": "history", "history": STATE.history})
+    except Exception:
+        pass
+    return "Updated the story history pane."
+
+
+def record_a_clue(
+    title: str = Field(description="Short title for the clue"),
+    content: str = Field(description="Detailed description of the clue"),
+    found_at: Optional[str] = Field(
+        default=None, description="Where/when it was found"
+    ),
+    clue_id: Optional[str] = Field(
+        default=None, description="Stable id if you want to update an existing clue"
+    ),
+) -> str:
+    """
+    Add or update a clue in the left-pane accordion.
+    If clue_id is provided and already exists, it will be replaced.
+    """
+    cid = str(clue_id or f"c{len(STATE.clues)+1}")
+    clue = Clue(id=cid, title=title, content=content, found_at=found_at)
+    STATE.clues = [c for c in STATE.clues if c.id != cid] + [clue]
+    try:
+        broadcaster.publish(
+            {
+                "type": "clues",
+                "clues": [c.__dict__ for c in STATE.clues],
+                "updated": clue.__dict__,
+            }
+        )
+    except Exception:
+        pass
+    return f"Recorded clue '{title}'."
+
+
+def set_illustration_url(
+    url: str = Field(description="Public URL to display in the Illustration pane"),
+) -> str:
+    """
+    Set the current scene illustration by providing a URL (e.g. /public/.. or https://..).
+    """
+    STATE.illustration_url = url
+    try:
+        broadcaster.publish({"type": "illustration", "url": STATE.illustration_url})
+    except Exception:
+        pass
+    return "Updated the illustration pane."
+
+
+update_history_excerpt_tool = FunctionTool.from_defaults(
+    update_history_excerpt,
+    description="Replace the left-pane History text with a short summary.",
+)
+
+record_a_clue_tool = FunctionTool.from_defaults(
+    record_a_clue,
+    description="Add or update a clue in the left-pane accordion.",
+)
+
+set_illustration_url_tool = FunctionTool.from_defaults(
+    set_illustration_url,
+    description="Set the current scene illustration by providing a URL.",
 )

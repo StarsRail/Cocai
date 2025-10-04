@@ -87,6 +87,7 @@ No need to explicitly install Python packages. `uv`, the package manager of our 
 #### Install the required binary programs
 
 These are the binary programs that you need to have ready before running Cocai:
+
 - [`just`](https://github.com/casey/just), a command runner. I use this because I always tend to forget the exact command to run.
 - [`uv`](https://docs.astral.sh/uv/), the Python package manager that Cocai uses. It does not require you to explicitly create a virtual environment.
 - [Docker](https://www.docker.com/). Cocai requires many types of databases, e.g. object storage and vector storage, along with some containerized applications. We need the `docker-compose` command to orchestrate these containers.
@@ -118,6 +119,7 @@ ollama pull nomic-embed-text
 The easiest (and perhaps highest-quality) way would be to provide an API key to OpenAI. Simply add `OPENAI_API_KEY=sk-...` to a `.env` file in the project root.
 
 With the absence of an OpenAI API key, the chatbot will default to using [Ollama][olm], a program that serves LLMs locally.
+
 - Ensure that your local Ollama server has already downloaded the `llama3.1` model. If you haven't (or aren't sure), run `ollama pull llama3.1`.
 - If you want to use a different model that does not support function-calling, that's also possible. Revert [this commit][tc], so that you can use the ReAct paradigm to simulate function-calling capabilities with a purely semantic approach.
 
@@ -147,15 +149,17 @@ Optionally, if you prefer to use a hosted open LLM, you can try [Together.ai](ht
 There are 2 ways to start the chatbot, the easy way and the hard way.
 
 In the easy way, **simply run `just serve-all`**. This will start all the required standalone programs and the chatbot in one go. Notes:
-* **Use of multiplexer.** To avoid cluttering up your screen, we use a [terminal multiplexer][tmx] (`tmux`), which essentially divides your terminal window into panes, each running a separate program.
+
+- **Use of multiplexer.** To avoid cluttering up your screen, we use a [terminal multiplexer][tmx] (`tmux`), which essentially divides your terminal window into panes, each running a separate program.
   The panes are defined in the file `tmuxinator.yaml`. [Tmuxinator](https://github.com/tmuxinator/tmuxinator) is a separate program that manages `tmux` sessions declaratively.
-* **Don't use the Dockerfile**. For a tech demo, I hacked up a `Dockerfile`, which uses this `just serve-all` command. But the `tmuxinator.yaml` file had been updated since, and I'm pretty sure the Dockerfile is broken now.
+- **Don't use the Dockerfile**. For a tech demo, I hacked up a `Dockerfile`, which uses this `just serve-all` command. But the `tmuxinator.yaml` file had been updated since, and I'm pretty sure the Dockerfile is broken now.
 
 [tmx]: https://en.wikipedia.org/wiki/Terminal_multiplexer
 
 <img width="1278" alt="image" src="https://github.com/user-attachments/assets/d7db810d-4de0-432d-87f2-affc14e1daa9">
 
 In the hard way, you want to create a separate terminal for each command:
+
 1. Start serving **Ollama** by running `ollama serve`. It should be listening at `http://localhost:11434/v1`. Details:
    - This is for locally inferencing embedding & language models.
    - I did not containerize this because [Docker doesn't support GPUs in Apple Silicon](https://chariotsolutions.com/blog/post/apple-silicon-gpus-docker-and-ollama-pick-two/) (as of Feb 2024), which is what I'm using.
@@ -169,6 +173,20 @@ In the hard way, you want to create a separate terminal for each command:
 4. Finally, start serving the **chatbot** by running `just serve`.
 
 Either way, Cocai should be ready at `http://localhost:8000/chat/`. Log in with the dummy credentials `admin` and `admin`.
+
+### Multi-pane Play UI (experimental)
+
+In addition to the default Chainlit chat UI, Cocai now exposes a three-pane gameplay UI at `http://localhost:8000/play`:
+
+- Left sidebar: History (summary text) and a Clues accordion
+- Center: Illustration pane on top; the usual Chainlit chat embedded below
+- Right sidebar: PC name, stats, and skill buttons (click to roll)
+
+Programmatic updates during the game can be done via new tools the agent can call:
+
+- update_history_excerpt(summary)
+- record_a_clue(title, content, found_at?, clue_id?)
+- set_illustration_url(url)
 
 ## Troubleshooting
 

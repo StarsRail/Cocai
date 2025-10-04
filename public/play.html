@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cocai Play</title>
+    <style>
+      :root {
+        --bg: #0e0e10;
+        --panel: #17171a;
+        --panel-2: #1f1f24;
+        --text: #e7e7ea;
+        --muted: #a4a4ae;
+        --primary: #7c5cff;
+        --border: #2a2a31;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--text);
+        background: linear-gradient(180deg, #0b0b0d 0%, #0e0e10 100%);
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 280px 1fr 320px;
+        grid-template-rows: 100vh;
+        gap: 10px;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      aside, main, section {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      /* Left sidebar */
+      #left { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; padding: 8px; background: transparent; border: none; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
+      .card header { padding: 10px 12px; font-weight: 600; background: var(--panel-2); border-bottom: 1px solid var(--border); letter-spacing: 0.3px; }
+      .card .content { padding: 12px; overflow: auto; }
+      .muted { color: var(--muted); }
+      /* Clues accordion */
+      .accordion { display: flex; flex-direction: column; gap: 8px; }
+      .acc-item { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #141418; }
+      .acc-summary { width: 100%; text-align: left; padding: 10px 12px; background: #18181d; color: var(--text); border: none; outline: none; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+      .acc-summary:hover { background: #1c1c22; }
+      .acc-body { padding: 10px 12px; display: none; color: var(--muted); border-top: 1px solid var(--border); }
+      .acc-item.open .acc-body { display: block; }
+      .tag { display: inline-block; padding: 2px 8px; font-size: 11px; color: #c9d1ff; background: rgba(124,92,255,0.12); border: 1px solid rgba(124,92,255,0.35); border-radius: 999px; margin-left: 8px; }
+      /* Main */
+      main { display: grid; grid-template-rows: 56% 44%; }
+      #illustration { position: relative; background: radial-gradient(80% 70% at 50% 30%, #1b1b21, #121216 70%); display: flex; align-items: center; justify-content: center; }
+      #illustration img { max-width: 100%; max-height: 100%; object-fit: contain; }
+      #chat { border-top: 1px solid var(--border); background: var(--panel); display: grid; grid-template-rows: 1fr auto; }
+      #chat-log { padding: 12px; overflow: auto; }
+      .msg { margin-bottom: 10px; }
+      .msg .who { font-weight: 700; margin-right: 6px; color: #cbd5ff; }
+      #chat-input { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--border); }
+      #chat-input input { flex: 1; padding: 10px 12px; background: #121216; color: var(--text); border: 1px solid var(--border); border-radius: 8px; }
+      #chat-input button { padding: 10px 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+      #chat-input button:hover { filter: brightness(1.05); }
+      /* Right sidebar */
+      #right { display: grid; grid-template-rows: auto auto 1fr; }
+      #pc-header { padding: 12px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+      #pc-name { font-size: 20px; font-weight: 700; }
+      #pc-stats { padding: 10px 12px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .stat { background: #141418; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; display: flex; justify-content: space-between; }
+      #skills { padding: 10px; border-top: 1px solid var(--border); overflow: auto; display: grid; grid-template-columns: 1fr; gap: 8px; }
+      .skill { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #141418; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+      .skill button { background: #2a2a35; color: #f2f2f7; border: 1px solid #3a3a46; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+      .skill button:hover { background: #343444; }
+  .skill button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.5); }
+  .placeholder { color: var(--muted); font-style: italic; padding: 6px 2px; }
+      /* Responsive */
+      @media (max-width: 1200px) {
+        body { grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+        #left, #right { order: 1; }
+        main { order: 0; min-height: 60vh; }
+      }
+    </style>
+  </head>
+  <body>
+    <aside id="left">
+      <section class="card" id="history-card">
+        <header>History</header>
+        <div class="content">
+          <div id="history" class="muted"></div>
+        </div>
+      </section>
+      <section class="card" id="clues-card">
+        <header>Clues</header>
+        <div class="content">
+          <div id="clues" class="accordion"></div>
+        </div>
+      </section>
+    </aside>
+    <main>
+      <section id="illustration">
+        <img id="scene-image" alt="Scene illustration" />
+      </section>
+      <section id="chat" style="padding:0;">
+        <iframe src="/chat" title="Cocai Chat" style="width:100%; height:100%; border:0;"></iframe>
+      </section>
+    </main>
+    <aside id="right">
+      <div id="pc-header">
+        <div id="pc-name">Investigator</div>
+      </div>
+      <div id="pc-stats"></div>
+      <div id="skills"></div>
+    </aside>
+
+    <script>
+      async function fetchState() {
+        const res = await fetch('/api/state');
+        if (!res.ok) return null;
+        return res.json();
+      }
+
+      function renderHistory(history) {
+        document.getElementById('history').textContent = history || '';
+      }
+
+      function renderClues(clues) {
+        const container = document.getElementById('clues');
+        container.innerHTML = '';
+        (clues || []).forEach(c => {
+          const item = document.createElement('div');
+          item.className = 'acc-item';
+          const btn = document.createElement('button');
+          btn.className = 'acc-summary';
+          btn.innerHTML = `<span>${c.title}</span><span class="tag">${c.found_at || 'Unknown'}</span>`;
+          const body = document.createElement('div');
+          body.className = 'acc-body';
+          body.textContent = c.content;
+          btn.addEventListener('click', () => item.classList.toggle('open'));
+          item.appendChild(btn); item.appendChild(body);
+          container.appendChild(item);
+        });
+      }
+
+      function renderIllustration(url) {
+        const img = document.getElementById('scene-image');
+        if (url) img.src = url; else img.removeAttribute('src');
+      }
+
+      function renderPC(pc) {
+        document.getElementById('pc-name').textContent = pc?.name || 'Investigator';
+        const stats = document.getElementById('pc-stats');
+        stats.innerHTML = '';
+        const statEntries = Object.entries(pc?.stats || {});
+        if (statEntries.length) {
+          statEntries.forEach(([k,v])=>{
+            const d = document.createElement('div');
+            d.className = 'stat';
+            d.innerHTML = `<span>${k}</span><span>${v}</span>`;
+            stats.appendChild(d);
+          });
+        } else {
+          const hint = document.createElement('div');
+          hint.className = 'placeholder';
+          hint.textContent = 'Create a character to see stats.';
+          stats.appendChild(hint);
+        }
+        const skills = document.getElementById('skills');
+        skills.innerHTML = '';
+        const skillEntries = Object.entries(pc?.skills || {});
+        if (skillEntries.length) {
+          skillEntries.forEach(([k,v])=>{
+            const row = document.createElement('div');
+            row.className = 'skill';
+            const label = document.createElement('div');
+            label.textContent = `${k}`;
+            const right = document.createElement('div');
+            right.style.display = 'flex';
+            right.style.gap = '8px';
+            const val = document.createElement('span');
+            val.className = 'muted';
+            val.textContent = v;
+            right.appendChild(val);
+            // const btn = document.createElement('button');
+            // btn.textContent = 'Roll';
+            // btn.addEventListener('click', async ()=>{
+            //   // TODO: Clicking on the "Roll" button should send a message to the chatbox saying "Roll a skill check of [...]." on the player's behalf.
+            // });
+            // right.appendChild(btn);
+            row.appendChild(label);
+            row.appendChild(right);
+            skills.appendChild(row);
+          });
+        }
+      }
+
+      function openDiceWindow(url) {
+        try { window.open(url, '_blank', 'width=420,height=320'); } catch(e) {}
+      }
+
+      function listenEvents() {
+        try {
+          const es = new EventSource('/api/events');
+          es.onmessage = (ev) => {
+            try {
+              const msg = JSON.parse(ev.data);
+              if (msg.type === 'history') {
+                renderHistory(msg.history);
+              } else if (msg.type === 'clues') {
+                renderClues(msg.clues);
+              } else if (msg.type === 'illustration') {
+                renderIllustration(msg.url);
+              } else if (msg.type === 'pc') {
+                renderPC(msg.pc);
+              } else if (msg.type === 'server_shutdown') {
+                try { es.close(); } catch(e) {}
+                const iframe = document.querySelector('#chat iframe');
+                if (iframe) iframe.src = 'about:blank';
+              }
+            } catch (e) { /* ignore parse errors */ }
+          };
+          window.addEventListener('beforeunload', ()=>{ try { es.close(); } catch(e){} });
+        } catch (e) { /* ignore if SSE not available */ }
+      }
+
+      async function init() {
+        const state = await fetchState();
+        if (!state) return;
+        renderHistory(state.history);
+        renderClues(state.clues);
+        renderIllustration(state.illustration_url);
+        renderPC(state.pc);
+        listenEvents();
+        // Chat handled inside the embedded Chainlit iframe
+      }
+
+      init();
+    </script>
+  </body>
+  </html>

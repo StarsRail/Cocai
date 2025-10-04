@@ -19,9 +19,12 @@ from tools import (
     ToolForConsultingTheModule,
     ToolForSuggestingChoices,
     illustrate_a_scene,
+    record_a_clue_tool,
     roll_a_dice,
     roll_a_skill,
+    set_illustration_url_tool,
     tool_for_creating_character,
+    update_history_excerpt_tool,
 )
 from utils import set_up_data_layer
 
@@ -140,6 +143,9 @@ def set_up_llama_index():
         roll_a_skill,
         illustrate_a_scene,
         tool_for_creating_character,
+        update_history_excerpt_tool,
+        record_a_clue_tool,
+        set_illustration_url_tool,
     ]
     # # ============= End of the code block for building tools. =============
     # Override the default system prompt for ReAct chats.
