@@ -70,7 +70,9 @@ def create_callback_manager() -> CallbackManager:
     callback_handlers = [
         LlamaDebugHandler(logger=debug_logger),
     ]
-    callback_handlers.append(cl.LlamaIndexCallbackHandler())
+    # Chainlit's callback handler is buggy. I don't think we need to have the user see
+    # all the low-level details of LlamaIndex's operations anyway.
+    # callback_handlers.append(cl.LlamaIndexCallbackHandler())
     return CallbackManager(callback_handlers)
 
 
