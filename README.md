@@ -164,7 +164,7 @@ In the hard way, you want to create a separate terminal for each command:
    - This is for locally inferencing embedding & language models.
    - I did not containerize this because [Docker doesn't support GPUs in Apple Silicon](https://chariotsolutions.com/blog/post/apple-silicon-gpus-docker-and-ollama-pick-two/) (as of Feb 2024), which is what I'm using.
 2. Start Docker containers by running `docker-compose up`. This includes:
-   - **minIO** object database (for persisting data for our web frontend, including user credentials and chat history -- not thought chains, though)
+   - ~~**minIO** object database (for persisting data for our web frontend, including user credentials and chat history -- not thought chains, though)~~
    - **Arize Phoenix** platform (for debugging thought chains)
    - **Qdrant** vector database (for the chatbot's short-term memory -- this is implemented via `mem0`)
 3. Optionally, start serving a "**Stable Diffusion web UI**" server with API support turned on by running `cd ../stable-diffusion-webui; ./webui.sh --api --nowebui --port 7860`.
@@ -172,7 +172,7 @@ In the hard way, you want to create a separate terminal for each command:
    - If Stable Diffusion is not running, the AI Keeper will still be able to generate text-based responses. It's just that it won't be able to draw illustrations.
 4. Finally, start serving the **chatbot** by running `just serve`.
 
-Either way, Cocai should be ready at `http://localhost:8000/chat/`. Log in with the dummy credentials `admin` and `admin`.
+Either way, Cocai should be ready at `http://localhost:8000/chat/`. ~~Log in with the dummy credentials `admin` and `admin`.~~
 
 ### Multi-pane Play UI (experimental)
 
