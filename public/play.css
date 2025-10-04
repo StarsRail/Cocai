@@ -1,0 +1,184 @@
+/* Viewport-sized app shell with no body scrollbars */
+html,
+body {
+  height: 100%;
+}
+html {
+  box-sizing: border-box;
+}
+*,
+*::before,
+*::after {
+  box-sizing: inherit;
+}
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow: hidden; /* no page scrollbars; panes will scroll internally */
+}
+:root {
+  --bg: #0e0e10;
+  --panel: #17171a;
+  --panel-2: #1f1f24;
+  --text: #e7e7ea;
+  --muted: #a4a4ae;
+  --primary: #7c5cff;
+  --border: #2a2a31;
+}
+body {
+  background: linear-gradient(180deg, #0b0b0d 0%, #0e0e10 100%);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial;
+}
+/* Keep small component styles while allowing Bootstrap to handle layout */
+.panel-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.panel-card .card-header {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.muted {
+  color: var(--muted);
+}
+.placeholder {
+  color: var(--muted);
+  font-style: italic;
+  padding: 6px 2px;
+}
+#illustration {
+  background: radial-gradient(80% 70% at 50% 30%, #1b1b21, #121216 70%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#illustration img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+/* Accordion overrides (kept simple) */
+.acc-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #141418;
+}
+.acc-summary {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: #18181d;
+  color: var(--text);
+  border: none;
+  outline: none;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.acc-body {
+  padding: 10px 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+}
+.acc-item .btn-toggle:focus {
+  outline: 2px solid rgba(124, 92, 255, 0.35);
+  outline-offset: 2px;
+}
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #c9d1ff;
+  background: rgba(124, 92, 255, 0.12);
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: 999px;
+  margin-left: 8px;
+}
+/* IDE-like layout using Split.js */
+.app-root {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  padding: 8px;
+}
+.column {
+  height: 100%;
+  min-width: 160px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.split-vertical {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pane {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pane.scrollable {
+  overflow: auto;
+}
+.panel-card.fill {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.panel-card .panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Gutters for Split.js */
+.gutter {
+  background: var(--border);
+  opacity: 0.9;
+  background-clip: padding-box;
+}
+.gutter.gutter-horizontal {
+  width: 6px;
+  cursor: col-resize;
+}
+.gutter.gutter-vertical {
+  height: 6px;
+  cursor: row-resize;
+}
+/* Make gutters a bit easier to grab */
+.gutter.gutter-horizontal:hover,
+.gutter.gutter-vertical:hover {
+  background: #3a3a44;
+}
+
+/* Ensure images/iframes fit inside panes */
+#illustration,
+#chat {
+  height: 100%;
+}
+#chat iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Responsive: collapse side columns on narrow screens */
+@media (max-width: 1000px) {
+  #col-left,
+  #col-right {
+    display: none;
+  }
+  .gutter.gutter-horizontal {
+    display: none !important;
+  }
+}
