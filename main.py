@@ -73,7 +73,11 @@ def create_callback_manager() -> CallbackManager:
     # Chainlit's callback handler is buggy. I don't think we need to have the user see
     # all the low-level details of LlamaIndex's operations anyway.
     # callback_handlers.append(cl.LlamaIndexCallbackHandler())
-    return CallbackManager(callback_handlers)
+    from typing import List, cast
+
+    from llama_index.core.callbacks.base_handler import BaseCallbackHandler
+
+    return CallbackManager(cast(List[BaseCallbackHandler], callback_handlers))
 
 
 def set_up_llama_index():
