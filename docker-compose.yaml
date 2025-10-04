@@ -8,7 +8,7 @@ services:
       - ./.qdrant_storage:/qdrant/storage:z
 
   phoenix:
-    image: arizephoenix/phoenix:version-7.3.2-nonroot
+    image: arizephoenix/phoenix:version-12.2.0-nonroot
     ports:
       - "6006:6006"
       - "4317:4317"
