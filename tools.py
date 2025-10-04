@@ -178,7 +178,8 @@ class ToolForConsultingTheModule:
             return ""
         try:
             response = self.query_engine.query(query)
-            return response.response or ""
+            # The response can be a Response object or string-like; convert safely to str.
+            return str(getattr(response, "response", response) or "")
         except Exception as e:
             logger.error(f"Error occurred while consulting the game module: {e}")
             return ""
@@ -353,3 +354,39 @@ def illustrate_a_scene(
     )
     cl.run_sync(message.send())
     return "The illustrator has handed the player a drawing of the scene. You can continue."
+
+
+# ---- Stub: update_a_stat -----------------------------------------------------
+
+
+def update_a_stat(
+    stat_name: str = Field(description="Name of the stat to update"),
+    diff: Optional[float] = Field(
+        default=None,
+        description="Delta to add to the current value (mutually exclusive with 'value').",
+    ),
+    value: Optional[float] = Field(
+        default=None,
+        description="Absolute value to set (mutually exclusive with 'diff').",
+    ),
+) -> str:
+    """
+    Update a character stat by either applying a diff or setting an absolute value.
+    Exactly one of `diff` and `value` must be provided. This is a stub for now.
+    """
+    if (diff is None and value is None) or (diff is not None and value is not None):
+        raise ValueError("Provide exactly one of 'diff' or 'value'.")
+    # TODO: Integrate with character storage when available.
+    if diff is not None:
+        return f"Stub: recorded update for '{stat_name}' with diff={diff}."
+    else:
+        return f"Stub: recorded update for '{stat_name}' with value={value}."
+
+
+update_a_stat_tool = FunctionTool.from_defaults(
+    update_a_stat,
+    description=(
+        "Update a character stat by either applying a diff or setting an absolute value. "
+        "Exactly one of 'diff' and 'value' must be provided."
+    ),
+)
