@@ -405,21 +405,7 @@ update_a_stat_tool = FunctionTool.from_defaults(
 )
 
 
-# ---- UI-state tools: history, clues, illustration ---------------------------
-
-
-def update_history_excerpt(
-    summary: str = Field(description="Short text summarizing the story so far"),
-) -> str:
-    """
-    Replace the left-pane History text with a short summary.
-    """
-    STATE.history = str(summary)
-    try:
-        broadcaster.publish({"type": "history", "history": STATE.history})
-    except Exception:
-        pass
-    return "Updated the story history pane."
+# ---- UI-state tools: clues, illustration ---------------------------
 
 
 def record_a_clue(
@@ -465,11 +451,6 @@ def set_illustration_url(
         pass
     return "Updated the illustration pane."
 
-
-update_history_excerpt_tool = FunctionTool.from_defaults(
-    update_history_excerpt,
-    description="Replace the left-pane History text with a short summary.",
-)
 
 record_a_clue_tool = FunctionTool.from_defaults(
     record_a_clue,

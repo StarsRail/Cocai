@@ -1,6 +1,9 @@
 #!/usr/bin/env python
+import asyncio
 import logging
 import os
+from collections.abc import Coroutine
+from typing import List
 
 import chainlit as cl
 from llama_index.core import Settings
@@ -14,6 +17,7 @@ from llama_index.memory.mem0 import Mem0Memory
 from llama_index.tools.tavily_research import TavilyToolSpec
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
+from history import update_history_if_needed
 from tools import (
     ToolForConsultingTheModule,
     ToolForSuggestingChoices,
@@ -23,7 +27,6 @@ from tools import (
     roll_a_skill,
     set_illustration_url_tool,
     tool_for_creating_character,
-    update_history_excerpt_tool,
 )
 from utils import set_up_data_layer
 
@@ -137,7 +140,6 @@ def set_up_llama_index():
         roll_a_skill,
         illustrate_a_scene,
         tool_for_creating_character,
-        update_history_excerpt_tool,
         record_a_clue_tool,
         set_illustration_url_tool,
     ]
@@ -303,11 +305,31 @@ def __prepare_memory(key) -> Memory | Mem0Memory:
 
 @cl.on_chat_end
 async def cleanup():
-    pass
+    logger = logging.getLogger("chat_cleanup")
+    try:
+        if asyncio_task := cl.user_session.get("asyncio_task_for_updating_history"):
+            if not asyncio_task.done():
+                logger.info("Cancelling background history update task on chat end...")
+                asyncio_task.cancel()
+    except Exception as e:
+        logger.warning(f"Cleanup encountered an issue: {e}")
 
 
 @cl.on_message
 async def handle_message_from_user(message: cl.Message):
+    logger = logging.getLogger("handle_message_from_user")
+
+    # Get `asyncio_task_for_updating_history` from the user session. If it is not yet done, kill it first.
+    if existing_asyncio_task := cl.user_session.get(
+        "asyncio_task_for_updating_history"
+    ):
+        logger.info("Found existing asyncio task for updating history.")
+        if existing_asyncio_task.done():
+            logger.info("But it's already done.")
+        else:
+            logger.info("It's not yet done. Killing it.")
+            existing_asyncio_task.cancel()
+
     agent_from_session = cl.user_session.get("agent")
     if agent_from_session is None or not isinstance(agent_from_session, FunctionAgent):
         await cl.Message(
@@ -335,7 +357,6 @@ async def handle_message_from_user(message: cl.Message):
         ).send()
         return
     agent_memory: Memory | Mem0Memory = agent_memory_from_session
-
     # Save the user message ID and thread ID to the context state, so that tools can use them.
     async with agent_ctx.store.edit_state() as ctx_state:
         # Don't use `message` directly, because it is not serializable (by the default serializer of `DictState`, probably).
@@ -344,7 +365,31 @@ async def handle_message_from_user(message: cl.Message):
     # Run the agent.
     handler = agent.run(message.content, context=agent_ctx, memory=agent_memory)
     response_message = cl.Message(content="")
+    _agent_text_buffer: List[str] = []
     async for event in handler.stream_events():
         if isinstance(event, AgentStream):
             await response_message.stream_token(event.delta)
+            _agent_text_buffer.append(event.delta)
     await response_message.update()
+    # Final assistant reply text (for fallback if memory hasn't captured it yet)
+    agent_text = ("".join(_agent_text_buffer)).strip() or (
+        response_message.content or ""
+    )
+
+    if os.environ.get("ENABLE_AUTO_HISTORY_UPDATE", "1") == "1":
+        coroutine_for_updating_history: Coroutine = update_history_if_needed(
+            memory=agent_memory,
+            last_user_msg=message.content,
+            last_agent_msg=agent_text,
+        )
+        asyncio_task_for_updating_history: asyncio.Task = asyncio.create_task(
+            # The create_task() approach is known as "fire and forget." To run it, you must be within an event loop.
+            coroutine_for_updating_history
+        )
+        logger.info("Created new asyncio task for updating history. Saving it.")
+        # Save the coroutine to the user session, so that it can be cancelled when a new message arrives.
+        cl.user_session.set(
+            "asyncio_task_for_updating_history",
+            asyncio_task_for_updating_history,
+        )
+        logger.info("Saved asyncio task for updating history to user session.")

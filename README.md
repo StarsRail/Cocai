@@ -188,11 +188,17 @@ Programmatic updates during the game can be done via new tools the agent can cal
 - record_a_clue(title, content, found_at?, clue_id?)
 - set_illustration_url(url)
 
+Auto-updating History excerpt
+
+- After each agent response, Cocai will optionally refresh the History pane with a concise summary of the story so far. The decision is made by the LLM to avoid updating on pure rules/meta clarifications.
+- The summary considers the full conversation transcript (recent turns prioritized) and the existing History text to keep continuity.
+- You can disable this behavior by setting `ENABLE_AUTO_HISTORY_UPDATE=0` in your `.env`.
+
 ## Troubleshooting
 
 If you see:
 
-```
+```text
   File ".../llvmlite-0.43.0.tar.gz/ffi/build.py", line 142, in main_posix
     raise RuntimeError(msg) from None
 RuntimeError: Could not find a `llvm-config` binary. There are a number of reasons this could occur, please see: https://llvmlite.readthedocs.io/en/latest/admin-guide/install.html#using-pip for help.
@@ -207,7 +213,7 @@ brew install llvm
 
 If your `uv run phoenix serve` command fails with:
 
-```
+```text
 Traceback (most recent call last):
   File "Cocai/.venv/bin/phoenix", line 5, in <module>
     from phoenix.server.main import main
@@ -228,7 +234,7 @@ then you can work around the problem for now by [serving Arize Phoenix from a Do
 docker run -p 6006:6006 -p 4317:4317 -i -t arizephoenix/phoenix:latest
 ```
 
-# License
+## License
 
 🧑‍💻 The software itself is licensed under AGPL-3.0.
 
