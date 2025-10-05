@@ -182,3 +182,138 @@ body {
     display: none !important;
   }
 }
+
+/* ===== RPG styling for PC panel ===== */
+/* Header with subtle gradient and glow */
+#pc-header.card-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.12), transparent),
+    var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+#pc-name {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* Stats: compact tiles in a responsive grid */
+#pc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+.stat {
+  background: linear-gradient(180deg, #14141a, #121218);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.05) inset;
+}
+.stat span:first-child {
+  color: #cfd0d9;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.stat span:last-child {
+  font-weight: 700;
+  font-size: 18px;
+  color: #ffffff;
+  background: linear-gradient(
+    180deg,
+    rgba(124, 92, 255, 0.35),
+    rgba(124, 92, 255, 0.15)
+  );
+  border: 1px solid rgba(124, 92, 255, 0.45);
+  border-radius: 8px;
+  padding: 4px 10px;
+  line-height: 1;
+}
+
+/* Skills: progress-backed rows with value badge and roll button */
+#skills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #14141a;
+  overflow: hidden;
+}
+.skill::before {
+  content: "";
+  position: absolute;
+  inset: 4px auto 4px 4px; /* left, top/bottom with small inset */
+  width: var(--pct, 0%);
+  background: linear-gradient(
+    90deg,
+    rgba(124, 92, 255, 0.22),
+    rgba(124, 92, 255, 0.08)
+  );
+  border-radius: 7px;
+  pointer-events: none;
+  transition: width 0.25s ease;
+}
+.skill > * {
+  /* ensure content sits above the bar */
+  position: relative;
+  z-index: 1;
+}
+.skill div:first-child {
+  /* label */
+  color: #e9e9f0;
+  font-weight: 600;
+}
+.skill .muted,
+.skill .skill-value {
+  color: #dfe1ff;
+  background: rgba(124, 92, 255, 0.14);
+  border: 1px solid rgba(124, 92, 255, 0.35);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.skill .btn-roll {
+  --ring: rgba(124, 92, 255, 0.45);
+  --fill: rgba(124, 92, 255, 0.15);
+  color: #eae6ff;
+  background: var(--fill);
+  border: 1px solid var(--ring);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+.skill .btn-roll:hover {
+  background: rgba(124, 92, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.12);
+}
+.skill .btn-roll:focus {
+  outline: 2px solid rgba(124, 92, 255, 0.35);
+  outline-offset: 2px;
+}
+
+/* Scroll area padding niceties */
+#right-stats-pane .p-3,
+#right-skills-pane .p-3 {
+  padding-bottom: 14px;
+}

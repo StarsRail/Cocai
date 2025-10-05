@@ -51,10 +51,16 @@ function renderPC(pc) {
   const statEntries = Object.entries(pc?.stats || {});
   if (statEntries.length) {
     console.log("Rendering stats", statEntries);
+    // Keep insertion order, but ensure values are rendered as numbers when possible
     statEntries.forEach(([k, v]) => {
       const d = document.createElement("div");
       d.className = "stat";
-      d.innerHTML = `<span>${k}</span><span>${v}</span>`;
+      const nameEl = document.createElement("span");
+      nameEl.textContent = k;
+      const valEl = document.createElement("span");
+      valEl.textContent = v;
+      d.appendChild(nameEl);
+      d.appendChild(valEl);
       stats.appendChild(d);
     });
   } else {
@@ -62,23 +68,46 @@ function renderPC(pc) {
   }
   const skills = document.getElementById("skills");
   skills.innerHTML = "";
-  const skillEntries = Object.entries(pc?.skills || {});
+  let skillEntries = Object.entries(pc?.skills || {});
   if (skillEntries.length) {
     console.log("Rendering skills", skillEntries);
+    // Sort by descending numeric value, then alphabetically
+    skillEntries = skillEntries.sort(([aName, aVal], [bName, bVal]) => {
+      const av = parseSkillValue(aVal);
+      const bv = parseSkillValue(bVal);
+      if (bv !== av) return bv - av;
+      const an = String(aName).toLowerCase();
+      const bn = String(bName).toLowerCase();
+      if (an < bn) return -1;
+      if (an > bn) return 1;
+      return 0;
+    });
+
     skillEntries.forEach(([k, v]) => {
+      const percent = clampPct(parseSkillValue(v));
       const row = document.createElement("div");
       row.className = "skill";
+      row.style.setProperty("--pct", percent + "%");
+      row.setAttribute("role", "progressbar");
+      row.setAttribute("aria-valuemin", "0");
+      row.setAttribute("aria-valuemax", "100");
+      row.setAttribute("aria-valuenow", String(percent));
+
       const label = document.createElement("div");
       label.textContent = `${k}`;
+
       const right = document.createElement("div");
       right.style.display = "flex";
       right.style.gap = "8px";
+      right.style.alignItems = "center";
+
       const val = document.createElement("span");
-      val.className = "muted";
-      val.textContent = v;
-      right.appendChild(val);
+      val.className = "skill-value";
+      val.textContent = `${percent}%`;
+      val.setAttribute("aria-label", `${k} ${percent} percent`);
+
       const btn = document.createElement("button");
-      btn.className = "btn btn-sm btn-outline-light";
+      btn.className = "btn-roll";
       btn.textContent = "Roll";
       btn.title = `Roll a skill check of ${k}`;
       btn.addEventListener("click", async () => {
@@ -86,20 +115,35 @@ function renderPC(pc) {
         try {
           await sendMessageToChat(msg);
         } catch (e) {
-          // As a fallback, try opening the dice window if configured (optional)
-          // openDiceWindow(`/roll_dice?d10=2`);
           console.warn("Failed to send message to chat:", e);
           alert(
             "Could not reach the chat composer. Make sure the chat is loaded."
           );
         }
       });
+
+      right.appendChild(val);
       right.appendChild(btn);
       row.appendChild(label);
       row.appendChild(right);
       skills.appendChild(row);
     });
   }
+}
+
+function parseSkillValue(v) {
+  // Accept numbers, "NN%", or strings with digits; clamp later
+  if (typeof v === "number" && isFinite(v)) return v;
+  const m = String(v || "").match(/([0-9]{1,3})/);
+  if (m) return parseInt(m[1], 10);
+  return 0;
+}
+
+function clampPct(n) {
+  n = Number.isFinite(n) ? n : 0;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return Math.round(n);
 }
 
 function openDiceWindow(url) {
