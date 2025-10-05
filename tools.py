@@ -17,11 +17,12 @@ from llama_index.core import (
 )
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from llama_index.core.tools import FunctionTool
+from llama_index.core.workflow import Context
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import Field
 
 from events import broadcaster
-from state import STATE, Clue
+from state import Clue, GameState
 
 
 class ToolForSuggestingChoices:
@@ -189,7 +190,8 @@ update_a_stat_tool = FunctionTool.from_defaults(
 # ---- UI-state tools: clues, illustration ---------------------------
 
 
-def record_a_clue(
+async def record_a_clue(
+    ctx: Context,
     title: str = Field(description="Short title for the clue"),
     content: str = Field(description="Detailed description of the clue"),
     found_at: Optional[str] = Field(
@@ -203,33 +205,45 @@ def record_a_clue(
     Add or update a clue in the left-pane accordion.
     If clue_id is provided and already exists, it will be replaced.
     """
-    cid = str(clue_id or f"c{len(STATE.clues)+1}")
+    logger = logging.getLogger("record_a_clue")
+    read_only_user_visible_state: GameState = await ctx.store.get("user-visible")
+    cid = str(clue_id or f"c{len(read_only_user_visible_state.clues)+1}")
     clue = Clue(id=cid, title=title, content=content, found_at=found_at)
-    STATE.clues = [c for c in STATE.clues if c.id != cid] + [clue]
+    new_all_clues = [c for c in read_only_user_visible_state.clues if c.id != cid] + [
+        clue
+    ]
+    # Update the user-visible state in the context.
+    async with ctx.store.edit_state() as ctx_state:
+        user_visible_state: GameState = ctx_state.get("user-visible")
+        user_visible_state.clues = new_all_clues
     try:
         broadcaster.publish(
             {
                 "type": "clues",
-                "clues": [c.__dict__ for c in STATE.clues],
+                "clues": [c.__dict__ for c in new_all_clues],
                 "updated": clue.__dict__,
             }
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Failed to publish updated clues.", exc_info=e)
     return f"Recorded clue '{title}'."
 
 
-def set_illustration_url(
+async def set_illustration_url(
+    ctx: Context,
     url: str = Field(description="Public URL to display in the Illustration pane"),
 ) -> str:
     """
     Set the current scene illustration by providing a URL (e.g. /public/.. or https://..).
     """
-    STATE.illustration_url = url
+    logger = logging.getLogger("set_illustration_url")
+    async with ctx.store.edit_state() as ctx_state:
+        user_visible_state: GameState = ctx_state.get("user-visible")
+        user_visible_state.illustration_url = url
     try:
-        broadcaster.publish({"type": "illustration", "url": STATE.illustration_url})
-    except Exception:
-        pass
+        broadcaster.publish({"type": "illustration", "url": url})
+    except Exception as e:
+        logger.error("Failed to publish updated illustration.", exc_info=e)
     return "Updated the illustration pane."
 
 

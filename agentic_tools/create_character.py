@@ -1,14 +1,15 @@
 import logging
-from functools import wraps
+from functools import partial, wraps
 from typing import List, Literal, Optional
 
 import cochar
 from cochar.character import Character
 from llama_index.core.tools import FunctionTool
+from llama_index.core.workflow import Context
 from pydantic import BaseModel, Field
 
 from events import broadcaster
-from state import STATE
+from state import GameState
 
 
 class CreateCharacterRequest(BaseModel):
@@ -67,21 +68,33 @@ class CreateCharacterRequest(BaseModel):
 
 
 @wraps(cochar.create_character)
-def create_character(*args, **kwargs) -> dict:
+async def create_character(ctx: Context, *args, **kwargs) -> dict:
     logger = logging.getLogger("create_character")
-    character: Character = cochar.create_character(*args, **kwargs)
-    # Persist as the current PC and notify UI via SSE
+    # Remove 'ctx' from kwargs if present
+    kwargs.pop("ctx", None)
     try:
-        STATE.pc = character
-        pc_payload = STATE.to_dict().get("pc", {})
-        broadcaster.publish({"type": "pc", "pc": pc_payload})
+        character: Character = cochar.create_character(*args, **kwargs)
+    except Exception as e:
+        logger.error(f"Character creation failed: {e}", exc_info=e)
+        raise RuntimeError(f"Character creation failed: {e}") from e
+    character_as_json = dict()
+    # Access or modify state in the context
+    async with ctx.store.edit_state() as ctx_state:
+        user_visible_state = ctx_state.get("user-visible")
+        if type(user_visible_state) is GameState:
+            user_visible_state.pc = character
+        character_as_json = user_visible_state.to_dict().get("pc", {})
+    try:
+        broadcaster.publish({"type": "pc", "pc": character_as_json})
     except Exception as e:
         logger.error(f"Failed to publish the new PC via SSE: {e}")
     return character.get_json_format()
 
 
-tool_for_creating_character = FunctionTool.from_defaults(
-    create_character,
-    fn_schema=CreateCharacterRequest,
-    description="Create a playable character.",
-)
+def build_tool_for_creating_character(ctx: Context) -> FunctionTool:
+    return FunctionTool.from_defaults(
+        partial(create_character, ctx),
+        name="create_character",
+        fn_schema=CreateCharacterRequest,
+        description="Create a playable character.",
+    )

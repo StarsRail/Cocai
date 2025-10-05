@@ -1,9 +1,3 @@
-async function fetchState() {
-  const res = await fetch("/api/state");
-  if (!res.ok) return null;
-  return res.json();
-}
-
 function renderHistory(history) {
   document.getElementById("history").textContent = history || "";
 }
@@ -56,6 +50,7 @@ function renderPC(pc) {
   stats.innerHTML = "";
   const statEntries = Object.entries(pc?.stats || {});
   if (statEntries.length) {
+    console.log("Rendering stats", statEntries);
     statEntries.forEach(([k, v]) => {
       const d = document.createElement("div");
       d.className = "stat";
@@ -63,15 +58,13 @@ function renderPC(pc) {
       stats.appendChild(d);
     });
   } else {
-    const hint = document.createElement("div");
-    hint.className = "placeholder";
-    hint.textContent = "Create a character to see stats.";
-    stats.appendChild(hint);
+    console.log("No stats to render");
   }
   const skills = document.getElementById("skills");
   skills.innerHTML = "";
   const skillEntries = Object.entries(pc?.skills || {});
   if (skillEntries.length) {
+    console.log("Rendering skills", skillEntries);
     skillEntries.forEach(([k, v]) => {
       const row = document.createElement("div");
       row.className = "skill";
@@ -119,6 +112,7 @@ function listenEvents() {
   try {
     const es = new EventSource("/api/events");
     es.onmessage = (ev) => {
+      console.log("Received SSE:", ev.data);
       try {
         const msg = JSON.parse(ev.data);
         if (msg.type === "history") {
@@ -146,7 +140,7 @@ function listenEvents() {
       } catch (e) {}
     });
   } catch (e) {
-    /* ignore if SSE not available */
+    console.warn("Failed to setup SSE:", e);
   }
 }
 
@@ -336,12 +330,12 @@ function initLayout() {
 
 async function init() {
   initLayout();
-  const state = await fetchState();
-  if (!state) return;
-  renderHistory(state.history);
-  renderClues(state.clues);
-  renderIllustration(state.illustration_url);
-  renderPC(state.pc);
+  renderHistory("(Progress your adventure to see your story summarized here.)"); // start empty, will be updated via SSE
+  renderClues([]); // start empty, will be updated via SSE
+  renderIllustration(
+    "https://placehold.co/900x300@3x?text=(in-game+scene+will+be+illustrated+here+as+story+progresses)"
+  );
+  renderPC({ name: "", stats: {}, skills: {} }); // start empty, will be updated via SSE
   listenEvents();
   // Chat handled inside the embedded Chainlit iframe
 }

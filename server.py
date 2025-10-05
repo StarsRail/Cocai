@@ -9,13 +9,12 @@ from typing import Annotated, List
 
 from chainlit.utils import mount_chainlit
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
 from sse_starlette.sse import EventSourceResponse
 
 from events import broadcaster
-from state import STATE
 from utils import set_up_logging
 
 set_up_logging()
@@ -140,12 +139,6 @@ async def play_ui():
     """Serve the new three-column UI."""
     with open("public/play.html", encoding="utf-8") as f:
         return f.read()
-
-
-@app.get("/api/state")
-async def get_state():
-    """Used by the UI to fetch the current game state at page load."""
-    return JSONResponse(STATE.to_dict())
 
 
 @app.get("/api/events")

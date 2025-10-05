@@ -8,13 +8,15 @@ from typing import Any, Dict, List
 
 from llama_index.core import Settings
 from llama_index.core.memory import Memory
+from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
 
 from events import broadcaster
-from state import STATE
+from state import GameState
 
 
 async def update_history_if_needed(
+    ctx: Context,
     memory: Memory | Mem0Memory,
     last_user_msg: str | None = None,
     last_agent_msg: str | None = None,
@@ -34,20 +36,27 @@ async def update_history_if_needed(
     # Optionally update the History pane based on the latest exchange and overall story so far
     try:
         if await __should_update_history(transcript):
-            new_summary = await __summarize_story(transcript, STATE.history)
-            # Update the UI via the existing tool (keeps a single path for UI state updates)
-            try:
-                STATE.history = str(new_summary)
-                broadcaster.publish({"type": "history", "history": STATE.history})
-            except Exception:
-                # Fallback to direct state update if tool invocation path changes
-                STATE.history = new_summary
+            read_only_user_visible_state: GameState = await ctx.store.get(
+                "user-visible"
+            )
+            current_history = read_only_user_visible_state.history
+            new_summary = await __summarize_story(transcript, current_history)
+            # Update the user-visible state in the context.
+            async with ctx.store.edit_state() as ctx_state:
+                user_visible_state: GameState = ctx_state.get("user-visible")
+                user_visible_state.history = new_summary
+                try:
+                    broadcaster.publish(
+                        {"type": "history", "history": user_visible_state.history}
+                    )
+                except Exception as e:
+                    logger.error("Failed to publish updated history.", exc_info=e)
     except asyncio.CancelledError:
         # Allow cooperative cancellation to propagate immediately
         logger.info("auto_history_update task was cancelled")
         raise
     except Exception as e:
-        logger.error(f"Auto history update failed: {e}", exc_info=e)
+        logger.error("Auto history update failed.", exc_info=e)
 
 
 def __get_transcript_from_memory(

@@ -58,7 +58,3 @@ class GameState:
             "illustration_url": self.illustration_url,
             "pc": {"name": full_name, "stats": stats, "skills": skills},
         }
-
-
-# Global, in-memory state (per-process). In a real app, make this per-user/session and persist it.
-STATE = GameState()

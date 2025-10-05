@@ -10,16 +10,19 @@ from llama_index.core import Settings
 from llama_index.core.agent.workflow import AgentStream, FunctionAgent
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 from llama_index.core.memory import Memory
-from llama_index.core.tools import FunctionTool
+from llama_index.core.objects.base import ObjectRetriever
+from llama_index.core.schema import QueryType
+from llama_index.core.tools import BaseTool, FunctionTool
 from llama_index.core.workflow import Context
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.memory.mem0 import Mem0Memory
 from llama_index.tools.tavily_research import TavilyToolSpec
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-from agentic_tools.create_character import tool_for_creating_character
+from agentic_tools.create_character import build_tool_for_creating_character
 from agentic_tools.roll_dices import roll_a_dice, roll_a_skill
 from history import update_history_if_needed
+from state import GameState
 from tools import (
     ToolForConsultingTheModule,
     ToolForSuggestingChoices,
@@ -118,39 +121,15 @@ def set_up_llama_index():
         base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
     # ============= End of the code block for wiring on to models. =============
-    # ============= Start of the code block for building tools. =============
-    if api_key := os.environ.get("TAVILY_API_KEY", None):
-        # Manage your API keys here: https://app.tavily.com/home
-        logger.info(
-            "Thanks for providing a Tavily API key. This AI agent will be able to use search the internet."
-        )
-        tavily_tool = TavilyToolSpec(
-            api_key=api_key,
-        ).to_tool_list()
-    else:
-        tavily_tool = []
-    tool_for_consulting_the_module = FunctionTool.from_defaults(
-        ToolForConsultingTheModule().consult_the_game_module,
-    )
-    all_tools = tavily_tool + [
-        ToolForSuggestingChoices().suggest_choices,
-        tool_for_consulting_the_module,
-        roll_a_dice,
-        roll_a_skill,
-        illustrate_a_scene,
-        tool_for_creating_character,
-        record_a_clue_tool,
-        set_illustration_url_tool,
-    ]
-    # # ============= End of the code block for building tools. =============
+
     # Override the default system prompt for ReAct chats.
     with open("prompts/system_prompt.md") as f:
         MY_SYSTEM_PROMPT = f.read()
     if os.environ.get("SHOULD_PREREAD_GAME_MODULE", "0") == "1":
         logger.info("Pre-reading the game module...")
-        game_module_summary = tool_for_consulting_the_module.call(
+        game_module_summary = ToolForConsultingTheModule().consult_the_game_module(
             "Story background, character requirements, and keeper's notes."
-        ).content
+        )
         logger.info("Finished pre-reading the game module.")
         my_system_prompt = "\n\n".join(
             [
@@ -168,7 +147,50 @@ def set_up_llama_index():
     # This procedure will register Chainlit's callback manager, which will require Chainlit's context variables to
     # be ready before receiving an event, so it should be called AFTER calling the tool.
     Settings.callback_manager = create_callback_manager()
-    return all_tools, my_system_prompt
+    return my_system_prompt
+
+
+class AgentContextAwareToolRetriever(ObjectRetriever[BaseTool]):
+    """
+    Just like defining a list of tools directly when initializing the agent,
+    only that here we can initialize tools that need to access the agentWorkflow's context.
+
+    This workaround is needed because LlamaIndex's Workflow Context can't be initialized without initializing the agentWorkflow first,
+    but the agentWorkflow needs either a list of tools upfront or a tool retriever.
+    """
+
+    def __init__(self, ctx: Context):
+        if api_key := os.environ.get("TAVILY_API_KEY", None):
+            # Manage your API keys here: https://app.tavily.com/home
+            logger.info(
+                "Thanks for providing a Tavily API key. This AI agent will be able to use search the internet."
+            )
+            tavily_tool = TavilyToolSpec(
+                api_key=api_key,
+            ).to_tool_list()
+        else:
+            tavily_tool = []
+        self._tools: List[FunctionTool] = tavily_tool + [
+            FunctionTool.from_defaults(ToolForSuggestingChoices().suggest_choices),
+            FunctionTool.from_defaults(
+                ToolForConsultingTheModule().consult_the_game_module,
+            ),
+            FunctionTool.from_defaults(roll_a_dice),
+            FunctionTool.from_defaults(roll_a_skill),
+            FunctionTool.from_defaults(illustrate_a_scene),
+            build_tool_for_creating_character(ctx),
+            record_a_clue_tool,
+            set_illustration_url_tool,
+        ]
+        self._ctx = ctx
+
+    def retrieve(self, str_or_query_bundle: QueryType) -> List[BaseTool]:
+        # Here you can customize which tools to return based on the context.
+        # For simplicity, we return all tools.
+        return self._tools  # type: ignore
+
+    async def aretrieve(self, str_or_query_bundle: QueryType) -> List[BaseTool]:
+        return self.retrieve(str_or_query_bundle)
 
 
 @cl.set_starters
@@ -200,16 +222,26 @@ async def set_starters(user=None, default_path: str | None = None):
 @cl.on_chat_start
 async def factory():
     # Build LLMs/tools and prompts per session to avoid global background resources
-    all_tools, my_system_prompt = set_up_llama_index()
+    my_system_prompt = set_up_llama_index()
     # Each chat session should have his own agent runner, because each chat session has different chat histories.
     key = cl.user_session.get("id")
     agent_memory = __prepare_memory(key)
     agent = FunctionAgent(
         system_prompt=my_system_prompt,
-        tools=all_tools,
         memory=agent_memory,
+        # We will be initalizing tools later via a custom tool retriever,
+        # so that some of the tools can be made context-aware.
     )
+
+    # User-visible game state includes things like the player character, a brief summary of the story so far, clues & items discovered, etc.
+    user_visible_game_state = GameState()
+    # Make agent aware of the user-visible game state.
     agent_ctx = Context(agent)
+    async with agent_ctx.store.edit_state() as ctx_state:
+        ctx_state["user-visible"] = user_visible_game_state
+
+    agent.tool_retriever = AgentContextAwareToolRetriever(agent_ctx)
+
     cl.user_session.set(
         "agent",
         agent,
@@ -377,6 +409,7 @@ async def handle_message_from_user(message: cl.Message):
 
     if os.environ.get("ENABLE_AUTO_HISTORY_UPDATE", "1") == "1":
         coroutine_for_updating_history: Coroutine = update_history_if_needed(
+            ctx=agent_ctx,
             memory=agent_memory,
             last_user_msg=message.content,
             last_agent_msg=agent_text,
