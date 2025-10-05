@@ -73,10 +73,7 @@ def create_character(*args, **kwargs) -> dict:
     # Persist as the current PC and notify UI via SSE
     try:
         STATE.pc = character
-        # Reuse state's serializer to get UI-friendly pc shape
-        from state import STATE as _S  # avoid confusion with local STATE
-
-        pc_payload = _S.to_dict().get("pc", {})
+        pc_payload = STATE.to_dict().get("pc", {})
         broadcaster.publish({"type": "pc", "pc": pc_payload})
     except Exception as e:
         logger.error(f"Failed to publish the new PC via SSE: {e}")
