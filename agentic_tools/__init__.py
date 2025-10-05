@@ -12,9 +12,9 @@ from agentic_tools.create_character import build_tool_for_creating_character
 from agentic_tools.misc import (
     ToolForConsultingTheModule,
     ToolForSuggestingChoices,
+    build_tool_for_recording_a_clue,
+    build_tool_for_setting_illustration_url,
     illustrate_a_scene,
-    record_a_clue_tool,
-    set_illustration_url_tool,
 )
 from agentic_tools.roll_dices import roll_a_dice, roll_a_skill
 
@@ -49,8 +49,8 @@ class AgentContextAwareToolRetriever(ObjectRetriever[BaseTool]):
             FunctionTool.from_defaults(roll_a_skill),
             FunctionTool.from_defaults(illustrate_a_scene),
             build_tool_for_creating_character(ctx),
-            record_a_clue_tool,
-            set_illustration_url_tool,
+            build_tool_for_recording_a_clue(ctx),
+            build_tool_for_setting_illustration_url(ctx),
         ]
         self._ctx = ctx
 

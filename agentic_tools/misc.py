@@ -1,6 +1,7 @@
 import base64
 import logging
 import os
+from functools import partial
 
 # How to use enums in Python: https://docs.python.org/3/howto/enum.html
 from pathlib import Path
@@ -247,12 +248,17 @@ async def set_illustration_url(
     return "Updated the illustration pane."
 
 
-record_a_clue_tool = FunctionTool.from_defaults(
-    record_a_clue,
-    description="Add or update a clue in the left-pane accordion.",
-)
+def build_tool_for_recording_a_clue(ctx: Context) -> FunctionTool:
+    return FunctionTool.from_defaults(
+        partial(record_a_clue, ctx),
+        name="record_a_clue",
+        description="Add or update a clue in the left-pane accordion.",
+    )
 
-set_illustration_url_tool = FunctionTool.from_defaults(
-    set_illustration_url,
-    description="Set the current scene illustration by providing a URL.",
-)
+
+def build_tool_for_setting_illustration_url(ctx: Context) -> FunctionTool:
+    return FunctionTool.from_defaults(
+        partial(set_illustration_url, ctx),
+        name="set_illustration_url",
+        description="Set the current scene illustration by providing a URL.",
+    )
