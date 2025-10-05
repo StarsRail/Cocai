@@ -3,56 +3,53 @@
 # Update this file:
 #   pre-commit autoupdate
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
     hooks:
-    -   id: check-ast
-    -   id: check-byte-order-marker
-    -   id: check-case-conflict
-    -   id: check-docstring-first
-    -   id: check-executables-have-shebangs
-    -   id: check-json
-    -   id: check-yaml
-    -   id: debug-statements
-    -   id: detect-private-key
-    -   id: end-of-file-fixer
+      - id: check-ast
+      - id: fix-byte-order-marker
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-executables-have-shebangs
+      - id: check-json
+      - id: check-yaml
+      - id: debug-statements
+      - id: detect-private-key
+      - id: end-of-file-fixer
         # Exclude generated files.
-        exclude: '^diagram.svg$'
-    -   id: trailing-whitespace
-    -   id: mixed-line-ending
--   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+        exclude: "^diagram.svg$"
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.18.2
     hooks:
-    -   id: mypy
+      - id: mypy
         additional_dependencies:
           - types-requests
         args: [--ignore-missing-imports]
--   repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.0
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.20.0
     hooks:
-    -   id: pyupgrade
+      - id: pyupgrade
         args: [--py36-plus]
--   repo: https://github.com/asottile/blacken-docs
-    rev: 1.19.1
+  - repo: https://github.com/asottile/blacken-docs
+    rev: 1.20.0
     hooks:
-    -   id: blacken-docs
+      - id: blacken-docs
         additional_dependencies: [black]
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  # Ruff version.
-  rev: v0.7.3
-  hooks:
-    - id: ruff
-      name: "Sort imports with Ruff"
-      args: [ --select, I, --fix ]
-    - id: ruff
-      name: "Lint code with Ruff"
-      args: [ --fix ]
-    - id: ruff-format
-      name: "Format code with Ruff"
-# I'm seeing "Library not loaded: /opt/homebrew/opt/icu4c/lib/libicui18n.74.dylib" error.
-# Seems that this hook relies on version 74 of icu4c, but other software I use relies on a newer version (76).
-# TODO: Re-enable this hook when the issue is resolved.
-#- repo: https://github.com/standard/standard
-#  rev: v17.1.2
-#  hooks:
-#    - id: standard
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.13.3
+    hooks:
+      - id: ruff
+        name: "Sort imports with Ruff"
+        args: [--select, I, --fix]
+      - id: ruff
+        name: "Lint code with Ruff"
+        args: [--fix]
+      - id: ruff-format
+        name: "Format code with Ruff"
+  - repo: https://github.com/standard/standard
+    rev: v17.1.2
+    hooks:
+      - id: standard

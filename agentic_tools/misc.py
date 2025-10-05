@@ -208,7 +208,7 @@ async def record_a_clue(
     """
     logger = logging.getLogger("record_a_clue")
     read_only_user_visible_state: GameState = await ctx.store.get("user-visible")
-    cid = str(clue_id or f"c{len(read_only_user_visible_state.clues)+1}")
+    cid = str(clue_id or f"c{len(read_only_user_visible_state.clues) + 1}")
     clue = Clue(id=cid, title=title, content=content, found_at=found_at)
     new_all_clues = [c for c in read_only_user_visible_state.clues if c.id != cid] + [
         clue
