@@ -10,26 +10,15 @@ from llama_index.core import Settings
 from llama_index.core.agent.workflow import AgentStream, FunctionAgent
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 from llama_index.core.memory import Memory
-from llama_index.core.objects.base import ObjectRetriever
-from llama_index.core.schema import QueryType
-from llama_index.core.tools import BaseTool, FunctionTool
 from llama_index.core.workflow import Context
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.memory.mem0 import Mem0Memory
-from llama_index.tools.tavily_research import TavilyToolSpec
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
-from agentic_tools.create_character import build_tool_for_creating_character
-from agentic_tools.roll_dices import roll_a_dice, roll_a_skill
+from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
+from agentic_tools.misc import ToolForConsultingTheModule
 from history import update_history_if_needed
 from state import GameState
-from tools import (
-    ToolForConsultingTheModule,
-    ToolForSuggestingChoices,
-    illustrate_a_scene,
-    record_a_clue_tool,
-    set_illustration_url_tool,
-)
 from utils import set_up_data_layer
 
 logger = logging.getLogger(__name__)
@@ -150,49 +139,6 @@ def set_up_llama_index():
     return my_system_prompt
 
 
-class AgentContextAwareToolRetriever(ObjectRetriever[BaseTool]):
-    """
-    Just like defining a list of tools directly when initializing the agent,
-    only that here we can initialize tools that need to access the agentWorkflow's context.
-
-    This workaround is needed because LlamaIndex's Workflow Context can't be initialized without initializing the agentWorkflow first,
-    but the agentWorkflow needs either a list of tools upfront or a tool retriever.
-    """
-
-    def __init__(self, ctx: Context):
-        if api_key := os.environ.get("TAVILY_API_KEY", None):
-            # Manage your API keys here: https://app.tavily.com/home
-            logger.info(
-                "Thanks for providing a Tavily API key. This AI agent will be able to use search the internet."
-            )
-            tavily_tool = TavilyToolSpec(
-                api_key=api_key,
-            ).to_tool_list()
-        else:
-            tavily_tool = []
-        self._tools: List[FunctionTool] = tavily_tool + [
-            FunctionTool.from_defaults(ToolForSuggestingChoices().suggest_choices),
-            FunctionTool.from_defaults(
-                ToolForConsultingTheModule().consult_the_game_module,
-            ),
-            FunctionTool.from_defaults(roll_a_dice),
-            FunctionTool.from_defaults(roll_a_skill),
-            FunctionTool.from_defaults(illustrate_a_scene),
-            build_tool_for_creating_character(ctx),
-            record_a_clue_tool,
-            set_illustration_url_tool,
-        ]
-        self._ctx = ctx
-
-    def retrieve(self, str_or_query_bundle: QueryType) -> List[BaseTool]:
-        # Here you can customize which tools to return based on the context.
-        # For simplicity, we return all tools.
-        return self._tools  # type: ignore
-
-    async def aretrieve(self, str_or_query_bundle: QueryType) -> List[BaseTool]:
-        return self.retrieve(str_or_query_bundle)
-
-
 @cl.set_starters
 async def set_starters(user=None, default_path: str | None = None):
     return [
@@ -240,7 +186,7 @@ async def factory():
     async with agent_ctx.store.edit_state() as ctx_state:
         ctx_state["user-visible"] = user_visible_game_state
 
-    agent.tool_retriever = AgentContextAwareToolRetriever(agent_ctx)
+    agent.tool_retriever = ToolProvider(agent_ctx)
 
     cl.user_session.set(
         "agent",
