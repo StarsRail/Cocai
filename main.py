@@ -17,16 +17,15 @@ from llama_index.memory.mem0 import Mem0Memory
 from llama_index.tools.tavily_research import TavilyToolSpec
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
+from agentic_tools.create_character import tool_for_creating_character
+from agentic_tools.roll_dices import roll_a_dice, roll_a_skill
 from history import update_history_if_needed
 from tools import (
     ToolForConsultingTheModule,
     ToolForSuggestingChoices,
     illustrate_a_scene,
     record_a_clue_tool,
-    roll_a_dice,
-    roll_a_skill,
     set_illustration_url_tool,
-    tool_for_creating_character,
 )
 from utils import set_up_data_layer
 
