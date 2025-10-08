@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Optional
 
 import chainlit as cl
+import httpx
 import qdrant_client
-import requests
 from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
@@ -139,7 +139,7 @@ class ToolForConsultingTheModule:
             return ""
 
 
-def illustrate_a_scene(
+async def illustrate_a_scene(
     scene_description: str = Field(description="a detailed description of the scene"),
 ) -> str:
     """
@@ -150,26 +150,26 @@ def illustrate_a_scene(
     logger = logging.getLogger("illustrate_a_scene")
     base_url = os.environ.get("STABLE_DIFFUSION_API_URL", "http://127.0.0.1:7860")
     try:
-        response = requests.post(
-            f"{base_url.rstrip('/')}/sdapi/v1/txt2img",
-            headers={
-                "accept": "application/json",
-                "Content-Type": "application/json",
-            },
-            json={
-                "prompt": scene_description,
-                "negative_prompt": "",
-                "sampler": "DPM++ SDE",
-                "scheduler": "Automatic",
-                "steps": 6,
-                "cfg_scale": 2,
-                "width": 768,
-                "height": 512,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        data = response.json()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{base_url.rstrip('/')}/sdapi/v1/txt2img",
+                headers={
+                    "accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "prompt": scene_description,
+                    "negative_prompt": "",
+                    "sampler": "DPM++ SDE",
+                    "scheduler": "Automatic",
+                    "steps": 6,
+                    "cfg_scale": 2,
+                    "width": 768,
+                    "height": 512,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
         image = base64.b64decode(data.get("images", [b""])[0])
         message = cl.Message(
             content=scene_description,
@@ -178,7 +178,7 @@ def illustrate_a_scene(
                 cl.Image(name=scene_description, display="inline", content=image)
             ],
         )
-        cl.run_sync(message.send())
+        await message.send()
         return "The illustrator has handed the player a drawing of the scene. You can continue."
     except Exception as e:
         logger.warning(
