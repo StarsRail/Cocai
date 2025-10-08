@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.traceback import install
 from sqlalchemy import create_engine, text
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter
 
 # ---- Environment flags -------------------------------------------------------
 
@@ -86,6 +87,7 @@ class MinioStorageClient(BaseStorageClient):
         except Exception as e:
             logger.warning(f"MinioStorageClient initialization error: {e}")
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential_jitter(initial=0.5, max=3))
     async def upload_file(
         self,
         object_key: str,
@@ -95,8 +97,14 @@ class MinioStorageClient(BaseStorageClient):
         content_disposition: str | None = None,
     ) -> Dict[str, Any]:
         try:
-            self.client.put_object(
-                Bucket=self.bucket, Key=object_key, Body=data, ContentType=mime
+            from asyncio import to_thread
+
+            await to_thread(
+                self.client.put_object,
+                Bucket=self.bucket,
+                Key=object_key,
+                Body=data,
+                ContentType=mime,
             )
             url = f"{self.endpoint_url}/{self.bucket}/{object_key}"
             return {"object_key": object_key, "url": url}
@@ -104,9 +112,14 @@ class MinioStorageClient(BaseStorageClient):
             logger.warning(f"MinioStorageClient, upload_file error: {e}")
             return {}
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential_jitter(initial=0.5, max=3))
     async def delete_file(self, object_key: str) -> bool:
         try:
-            self.client.delete_object(Bucket=self.bucket, Key=object_key)
+            from asyncio import to_thread
+
+            await to_thread(
+                self.client.delete_object, Bucket=self.bucket, Key=object_key
+            )
             return True
         except Exception as e:
             logger.warning(f"MinioStorageClient, delete_file error: {e}")
