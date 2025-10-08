@@ -19,7 +19,7 @@ from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
 from agentic_tools.misc import ToolForConsultingTheModule
 from history import update_history_if_needed
 from state import GameState
-from utils import set_up_data_layer
+from utils import env_flag, set_up_data_layer
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def set_up_llama_index():
     # Override the default system prompt for ReAct chats.
     with open("prompts/system_prompt.md", encoding="utf-8") as f:
         MY_SYSTEM_PROMPT = f.read()
-    if os.environ.get("SHOULD_PREREAD_GAME_MODULE", "0") == "1":
+    if env_flag("SHOULD_PREREAD_GAME_MODULE", default=False):
         logger.info("Pre-reading the game module...")
         game_module_summary = ToolForConsultingTheModule().consult_the_game_module(
             "Story background, character requirements, and keeper's notes."
@@ -204,7 +204,7 @@ async def factory():
 
 def __prepare_memory(key) -> Memory | Mem0Memory:
     logger = logging.getLogger("prepare_memory")
-    if os.environ.get("DISABLE_MEMORY", "0") == "1":
+    if env_flag("DISABLE_MEMORY", default=False):
         logger.info("Memory is disabled. Using defaults.")
         return Memory.from_defaults(session_id="my_session", token_limit=40000)
     if api_key := os.environ.get("MEM0_API_KEY", None):
@@ -353,7 +353,7 @@ async def handle_message_from_user(message: cl.Message):
         response_message.content or ""
     )
 
-    if os.environ.get("ENABLE_AUTO_HISTORY_UPDATE", "1") == "1":
+    if env_flag("ENABLE_AUTO_HISTORY_UPDATE", default=True):
         coroutine_for_updating_history: Coroutine = update_history_if_needed(
             ctx=agent_ctx,
             memory=agent_memory,
