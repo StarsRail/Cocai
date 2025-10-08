@@ -96,13 +96,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-# Mount the 'static' directory to serve static files
-app.mount("/static", StaticFiles(directory="dice/static"), name="static")
 # Expose public assets
 app.mount("/public", StaticFiles(directory="public"), name="public")
 
 # Template for rendering the dice in the HTML
-with open("dice/index.jinja", encoding="utf-8") as _f:
+with open("src/dice.jinja", encoding="utf-8") as _f:
     dice_template = _f.read()
 
 

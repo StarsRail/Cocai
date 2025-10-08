@@ -68,7 +68,8 @@ new RGBELoader().load(
     texture.mapping = THREE.EquirectangularReflectionMapping
     scene.background = texture
     scene.environment = texture
-  })
+  }
+)
 /* https://tympanus.net/codrops/2021/10/27/creating-the-effect-of-transparent-glass-and-plastic-in-three-js/ */
 const materialOptions = {
   transmission: 1,
@@ -77,9 +78,12 @@ const materialOptions = {
   ior: 1.5,
   /* Normal map makes the surface look rough.
      Source: https://opengameart.org/node/8180 */
-  normalMap: textureLoader.load('static/packeddirt_n.jpg'),
+  normalMap: textureLoader.load('public/dice/packeddirt_n.jpg'),
   // Add some scratches to the surface.
-  clearcoatNormalMap: textureLoader.load('https://threejs.org/examples/textures/pbr/Scratched_gold/Scratched_gold_01_1K_Normal.png', applyCommonSettingsToTextureMap),
+  clearcoatNormalMap: textureLoader.load(
+    'https://threejs.org/examples/textures/pbr/Scratched_gold/Scratched_gold_01_1K_Normal.png',
+    applyCommonSettingsToTextureMap
+  ),
   clearcoat: 0.5,
   /* "In case the material has a normal map authored using the left handed convention, the y component of normalScale
      should be negated to compensate for the different handedness."
@@ -87,7 +91,8 @@ const materialOptions = {
   clearcoatNormalScale: new THREE.Vector2(1.0, -1.0)
 }
 const diceArray = []
-diceOptions.forEach(([type, value], index) => { // eslint-disable-line no-undef
+diceOptions.forEach(([type, value], index) => {
+  // eslint-disable-line no-undef
   let dice
   switch (type) {
     case 'd4':
@@ -171,9 +176,13 @@ const cameraControls = new CameraControls(camera, renderer.domElement)
 // Use `cameraControls.setLookAt` instead of `camera.position` and `camera.lookAt`.
 cameraControls.setLookAt(
   // sitting at...
-  diceArray.length * 100, 1000, 500,
+  diceArray.length * 100,
+  1000,
+  500,
   // gazing at...
-  diceArray.length * 100, 100, 100,
+  diceArray.length * 100,
+  100,
+  100,
   false // Don't animate the transition.
 )
 
@@ -185,27 +194,25 @@ function createGround () {
     // We want the ground to be wide enough to encompass all dices...
     diceArray.length * 300,
     // ... but still have a fixed height.
-    800)
+    800
+  )
   // Create a material for the ground.
   const groundMaterial = new THREE.MeshPhysicalMaterial()
   /* I really like the wooden texture from the three.js examples, so I'm going to use it here.
        https://github.com/mrdoob/three.js/blob/master/examples/webgl_lights_physical.html */
   const baseUrl = 'https://threejs.org/examples/textures/hardwood2_'
-  textureLoader.load(baseUrl + 'diffuse.jpg',
-    (map) => {
-      groundMaterial.map = map
-      applyCommonSettingsToTextureMap(map)
-    })
-  textureLoader.load(baseUrl + 'bump.jpg',
-    (map) => {
-      groundMaterial.bumpMap = map
-      applyCommonSettingsToTextureMap(map)
-    })
-  textureLoader.load(baseUrl + 'roughness.jpg',
-    (map) => {
-      groundMaterial.roughnessMap = map
-      applyCommonSettingsToTextureMap(map)
-    })
+  textureLoader.load(baseUrl + 'diffuse.jpg', (map) => {
+    groundMaterial.map = map
+    applyCommonSettingsToTextureMap(map)
+  })
+  textureLoader.load(baseUrl + 'bump.jpg', (map) => {
+    groundMaterial.bumpMap = map
+    applyCommonSettingsToTextureMap(map)
+  })
+  textureLoader.load(baseUrl + 'roughness.jpg', (map) => {
+    groundMaterial.roughnessMap = map
+    applyCommonSettingsToTextureMap(map)
+  })
 
   const ground = new THREE.Mesh(groundGeometry, groundMaterial)
   scene.add(ground)
@@ -220,7 +227,12 @@ createGround()
   https://github.com/mrdoob/three.js/blob/37d6f280a5cd642e801469bb048f52300d31258e/examples/webgl_postprocessing_unreal_bloom.html */
 const renderScene = new RenderPass(scene, camera)
 
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85)
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  1.5,
+  0.4,
+  0.85
+)
 bloomPass.threshold = 0.9
 bloomPass.strength = 0.2
 bloomPass.radius = 0
