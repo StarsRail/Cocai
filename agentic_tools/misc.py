@@ -21,6 +21,12 @@ from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow import Context
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import Field
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential_jitter,
+)
 
 from events import broadcaster
 from state import Clue, GameState
@@ -139,6 +145,11 @@ class ToolForConsultingTheModule:
             return ""
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential_jitter(initial=0.5, max=3),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
+)
 async def illustrate_a_scene(
     scene_description: str = Field(description="a detailed description of the scene"),
 ) -> str:

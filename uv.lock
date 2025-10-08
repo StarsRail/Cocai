@@ -358,6 +358,7 @@ dependencies = [
     { name = "rich" },
     { name = "ruff" },
     { name = "sse-starlette" },
+    { name = "tenacity" },
     { name = "tomlkit" },
 ]
 
@@ -392,6 +393,7 @@ requires-dist = [
     { name = "rich", specifier = ">=13.8.0" },
     { name = "ruff", specifier = ">=0.6.3" },
     { name = "sse-starlette", specifier = ">=1.8.1" },
+    { name = "tenacity", specifier = ">=9.0.0" },
     { name = "tomlkit", specifier = ">=0.13.2" },
 ]
 
