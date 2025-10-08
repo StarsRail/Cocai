@@ -5,7 +5,7 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - ./.qdrant_storage:/qdrant/storage:z
+      - .data/qdrant:/qdrant/storage:z
 
   phoenix:
     image: arizephoenix/phoenix:version-12.2.0-nonroot
@@ -19,5 +19,5 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - ./.minio:/data
+      - .data/minio:/data
     command: server /data --console-address ":9001"

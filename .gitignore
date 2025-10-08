@@ -1,12 +1,10 @@
 .chainlit/data.db
 .chainlit/translations/
 
+.data/
 chroma_db/
 llamaIndex_storage/
 .files/
-.minio/
-.qdrant_storage/
-/chat_store.json
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,pycharm,intellij,macos,linux,windows,git,jupyternotebooks
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,pycharm,intellij,macos,linux,windows,git,jupyternotebooks
