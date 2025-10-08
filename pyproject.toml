@@ -35,7 +35,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "coverage-badge>=1.1.2",
     "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.ruff]

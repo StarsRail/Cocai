@@ -7,3 +7,5 @@ run:
     uv run src/main.py
 format:
     uv run ruff format
+test:
+    uv run pytest --cov=src/ ; uv run coverage-badge -f -o coverage.svg
