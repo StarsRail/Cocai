@@ -5,7 +5,7 @@
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![HitCount](https://hits.dwyl.com/StarsRail/Cocai.svg?style=flat-square)](http://hits.dwyl.com/StarsRail/Cocai)
-![Coverage Status](coverage.svg)
+![Coverage Status](docs/coverage.svg)
 ![License](https://img.shields.io/github/license/StarsRail/Cocai)
 
 A chatbot that plays Call of Cthulhu (CoC) with you, powered by AI.
@@ -68,9 +68,9 @@ flowchart TD
 
 Zooming in on the programs managed by Docker Compose, here are the ports and local folders (git-ignored) that each container will expose and use:
 
-![programs managed by Docker Compose](docker-compose.png)
+![programs managed by Docker Compose](docs/docker-compose.png)
 
-(Generated via `docker run --rm -it --name dcv -v $(pwd):/input pmsipilot/docker-compose-viz render -m image docker-compose.yaml`)
+(Generated via `just plot-docker-compose`)
 
 ## Usage
 
