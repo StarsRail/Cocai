@@ -51,7 +51,7 @@ class Difficulty(IntEnum):
     EXTREME = 2
 
 
-def __map_dice_outcome_to_degree_of_success(
+def map_dice_outcome_to_degree_of_success(
     difficulty: Difficulty, result: int, skill_value: int
 ) -> DegreesOfSuccess:
     if result == 100:
@@ -119,7 +119,7 @@ async def roll_a_skill(
         logger.error(f"Failed to send the scene: {e}")
 
     # Describe the result.
-    result = __map_dice_outcome_to_degree_of_success(
+    result = map_dice_outcome_to_degree_of_success(
         difficulty, dice_outcome, int(skill_value)
     )
     return f"You rolled a {dice_outcome}. That's a {result.name.lower().replace('_', ' ')}!"
