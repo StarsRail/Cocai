@@ -15,6 +15,7 @@ from agentic_tools.misc import (
     build_tool_for_recording_a_clue,
     build_tool_for_setting_illustration_url,
     illustrate_a_scene,
+    update_a_stat_tool,
 )
 from agentic_tools.roll_dices import roll_a_dice, roll_a_skill
 
@@ -48,6 +49,7 @@ class AgentContextAwareToolRetriever(ObjectRetriever[BaseTool]):
             FunctionTool.from_defaults(roll_a_dice),
             FunctionTool.from_defaults(roll_a_skill),
             FunctionTool.from_defaults(illustrate_a_scene),
+            update_a_stat_tool,
             build_tool_for_creating_character(ctx),
             build_tool_for_recording_a_clue(ctx),
             build_tool_for_setting_illustration_url(ctx),
