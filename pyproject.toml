@@ -30,3 +30,8 @@ dependencies = [
     "llama-index-utils-workflow>=0.3.5",
         "sse-starlette>=1.8.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+]
