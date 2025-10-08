@@ -17,8 +17,8 @@ from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
 from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
 from agentic_tools.misc import ToolForConsultingTheModule
-from history import update_history_if_needed
-from scene import update_scene_if_needed
+from async_panes.history import update_history_if_needed
+from async_panes.scene import update_scene_if_needed
 from state import GameState
 from utils import env_flag, set_up_data_layer
 
