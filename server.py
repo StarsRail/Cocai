@@ -102,7 +102,8 @@ app.mount("/static", StaticFiles(directory="dice/static"), name="static")
 app.mount("/public", StaticFiles(directory="public"), name="public")
 
 # Template for rendering the dice in the HTML
-dice_template = open("dice/index.jinja").read()
+with open("dice/index.jinja", encoding="utf-8") as _f:
+    dice_template = _f.read()
 
 
 @app.get("/roll_dice", response_class=HTMLResponse)
