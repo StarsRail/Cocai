@@ -19,3 +19,12 @@ def test_degree_mapping_boundaries():
     assert mp(Difficulty.EXTREME, 9, 50).name == "EXTREME_SUCCESS"
     assert mp(Difficulty.EXTREME, 10, 50).name == "EXTREME_SUCCESS"
     assert mp(Difficulty.EXTREME, 11, 50).name == "FAIL"
+
+
+def test_degree_mapping_odd_skill_floor_division():
+    """Ensure floor division boundaries behave as intended for odd skills (51)."""
+    mp = map_dice_outcome_to_degree_of_success
+    # skill=51 -> half=25, fifth=10 (integer division)
+    assert mp(Difficulty.REGULAR, 10, 51).name == "EXTREME_SUCCESS"
+    assert mp(Difficulty.REGULAR, 25, 51).name == "HARD_SUCCESS"
+    assert mp(Difficulty.REGULAR, 26, 51).name == "SUCCESS"

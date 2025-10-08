@@ -1,6 +1,6 @@
 .chainlit/data.db
 .chainlit/translations/
-
+public/illustrations/
 .data/
 chroma_db/
 llamaIndex_storage/
