@@ -41,6 +41,14 @@ class ToolForSuggestingChoices:
         return Settings.llm.complete(prompt).text
 
 
+def env_flag(name: str, default: bool = True) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    raw = str(raw).strip().lower()
+    return raw in {"1", "true", "yes", "y", "on"}
+
+
 class ToolForConsultingTheModule:
     query_engine: Optional[BaseQueryEngine] = None
 
@@ -56,8 +64,8 @@ class ToolForConsultingTheModule:
             port=6333,
         )
         vector_store = QdrantVectorStore(client=client, collection_name="game_module")
-        if client.collection_exists("game_module") and bool(
-            os.environ.get("SHOULD_REUSE_EXISTING_INDEX", True)
+        if client.collection_exists("game_module") and env_flag(
+            "SHOULD_REUSE_EXISTING_INDEX", True
         ):
             logger.info("The collection exists. Loading.")
             index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
