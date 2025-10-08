@@ -37,3 +37,6 @@ dependencies = [
 dev = [
     "pytest>=8.4.2",
 ]
+
+[tool.ruff]
+cache-dir = ".cache/ruff"
