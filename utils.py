@@ -56,7 +56,7 @@ class MinioStorageClient(BaseStorageClient):
             )
             logger.info("MinioStorageClient initialized")
         except Exception as e:
-            logger.warn(f"MinioStorageClient initialization error: {e}")
+            logger.warning(f"MinioStorageClient initialization error: {e}")
 
     async def upload_file(
         self,
@@ -73,7 +73,7 @@ class MinioStorageClient(BaseStorageClient):
             url = f"{self.endpoint_url}/{self.bucket}/{object_key}"
             return {"object_key": object_key, "url": url}
         except Exception as e:
-            logger.warn(f"MinioStorageClient, upload_file error: {e}")
+            logger.warning(f"MinioStorageClient, upload_file error: {e}")
             return {}
 
     async def delete_file(self, object_key: str) -> bool:
@@ -81,7 +81,7 @@ class MinioStorageClient(BaseStorageClient):
             self.client.delete_object(Bucket=self.bucket, Key=object_key)
             return True
         except Exception as e:
-            logger.warn(f"MinioStorageClient, delete_file error: {e}")
+            logger.warning(f"MinioStorageClient, delete_file error: {e}")
             return False
 
     async def close(self) -> None:

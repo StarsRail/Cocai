@@ -33,7 +33,7 @@ try:
     tracer_provider = register()
     LlamaIndexInstrumentor().instrument(tracer_provider=tracer_provider)
 except Exception as e:
-    logger.warn(f"Failed to register Phoenix OpenTelemetry instrumentation: {e}")
+    logger.warning(f"Failed to register Phoenix OpenTelemetry instrumentation: {e}")
 
 
 def create_callback_manager() -> CallbackManager:
@@ -112,7 +112,7 @@ def set_up_llama_index():
     # ============= End of the code block for wiring on to models. =============
 
     # Override the default system prompt for ReAct chats.
-    with open("prompts/system_prompt.md") as f:
+    with open("prompts/system_prompt.md", encoding="utf-8") as f:
         MY_SYSTEM_PROMPT = f.read()
     if os.environ.get("SHOULD_PREREAD_GAME_MODULE", "0") == "1":
         logger.info("Pre-reading the game module...")
