@@ -59,19 +59,45 @@ class ToolForConsultingTheModule:
         ),
     ):
         logger = logging.getLogger("ToolForConsultingTheModule")
-        client = qdrant_client.QdrantClient(
-            host="localhost",
-            port=6333,
-        )
-        vector_store = QdrantVectorStore(client=client, collection_name="game_module")
-        if client.collection_exists("game_module") and env_flag(
-            "SHOULD_REUSE_EXISTING_INDEX", True
-        ):
-            logger.info("The collection exists. Loading.")
-            index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
-        else:
-            logger.info(
-                "The collection does not exist, or the environment variable indicates that we should ignore the existing index. Creating."
+
+        qdrant_host = os.environ.get("QDRANT_HOST", "localhost")
+        qdrant_port = int(os.environ.get("QDRANT_PORT", "6333"))
+        collection = os.environ.get("QDRANT_COLLECTION", "game_module")
+
+        index: VectorStoreIndex
+        vector_store = None
+
+        try:
+            client = qdrant_client.QdrantClient(host=qdrant_host, port=qdrant_port)
+            vector_store = QdrantVectorStore(client=client, collection_name=collection)
+            reuse = env_flag("SHOULD_REUSE_EXISTING_INDEX", True)
+            if client.collection_exists(collection) and reuse:
+                logger.info(
+                    f"Qdrant collection '{collection}' exists at {qdrant_host}:{qdrant_port}. Loading."
+                )
+                index = VectorStoreIndex.from_vector_store(vector_store=vector_store)
+            else:
+                logger.info(
+                    "Qdrant collection absent or reuse disabled. Building index from documents."
+                )
+                documents = SimpleDirectoryReader(
+                    input_dir=str(path_to_module_folder),
+                    recursive=True,
+                    required_exts=[".md", ".txt"],
+                ).load_data()
+                storage_context = StorageContext.from_defaults(
+                    vector_store=vector_store
+                )
+                index = VectorStoreIndex.from_documents(
+                    documents=documents,
+                    storage_context=storage_context,
+                    show_progress=True,
+                )
+        except Exception as e:
+            # Fallback to in-memory index if Qdrant is unavailable
+            logger.warning(
+                "Qdrant unavailable or misconfigured; falling back to in-memory vector store.",
+                exc_info=e,
             )
             documents = SimpleDirectoryReader(
                 input_dir=str(path_to_module_folder),
@@ -82,13 +108,10 @@ class ToolForConsultingTheModule:
                 # Before including audio files here, `pip install openai-whisper`.
                 required_exts=[".md", ".txt"],
             ).load_data()
-            storage_context = StorageContext.from_defaults(vector_store=vector_store)
             index = VectorStoreIndex.from_documents(
-                # https://docs.llamaindex.ai/en/stable/api_reference/indices/vector_store.html#llama_index.indices.vector_store.base.VectorStoreIndex.from_documents
-                documents=documents,
-                storage_context=storage_context,
-                show_progress=True,
+                documents=documents, show_progress=True
             )
+
         self.query_engine = index.as_query_engine(
             similarity_top_k=5,
             # For a query engine hidden inside an Agent, streaming really doesn't make sense.
