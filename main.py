@@ -18,6 +18,7 @@ from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
 from agentic_tools.misc import ToolForConsultingTheModule
 from history import update_history_if_needed
+from scene import update_scene_if_needed
 from state import GameState
 from utils import env_flag, set_up_data_layer
 
@@ -288,6 +289,10 @@ async def cleanup():
             if not asyncio_task.done():
                 logger.info("Cancelling background history update task on chat end...")
                 asyncio_task.cancel()
+        if asyncio_task2 := cl.user_session.get("asyncio_task_for_updating_scene"):
+            if not asyncio_task2.done():
+                logger.info("Cancelling background scene update task on chat end...")
+                asyncio_task2.cancel()
     except Exception as e:
         logger.warning(f"Cleanup encountered an issue: {e}")
 
@@ -306,6 +311,14 @@ async def handle_message_from_user(message: cl.Message):
         else:
             logger.info("It's not yet done. Killing it.")
             existing_asyncio_task.cancel()
+    # Same for scene updates
+    if existing_scene_task := cl.user_session.get("asyncio_task_for_updating_scene"):
+        logger.info("Found existing asyncio task for updating scene.")
+        if existing_scene_task.done():
+            logger.info("But it's already done.")
+        else:
+            logger.info("It's not yet done. Killing it.")
+            existing_scene_task.cancel()
 
     agent_from_session = cl.user_session.get("agent")
     if agent_from_session is None or not isinstance(agent_from_session, FunctionAgent):
@@ -371,3 +384,20 @@ async def handle_message_from_user(message: cl.Message):
             asyncio_task_for_updating_history,
         )
         logger.info("Saved asyncio task for updating history to user session.")
+
+    if env_flag("ENABLE_AUTO_SCENE_UPDATE", default=True):
+        coroutine_for_updating_scene: Coroutine = update_scene_if_needed(
+            ctx=agent_ctx,
+            memory=agent_memory,
+            last_user_msg=message.content,
+            last_agent_msg=agent_text,
+        )
+        asyncio_task_for_updating_scene: asyncio.Task = asyncio.create_task(
+            coroutine_for_updating_scene
+        )
+        logger.info("Created new asyncio task for updating scene. Saving it.")
+        cl.user_session.set(
+            "asyncio_task_for_updating_scene",
+            asyncio_task_for_updating_scene,
+        )
+        logger.info("Saved asyncio task for updating scene to user session.")
