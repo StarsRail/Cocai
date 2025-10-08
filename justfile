@@ -2,8 +2,8 @@ serve-all:
     tmuxinator start -p tmuxinator.yaml
 serve:
     # This is for development. For production, use `serve-all`, which uses command in `tmuxinator.yaml`.
-    uv run uvicorn server:app --reload
+    uv run uvicorn server:app --reload --app-dir src
 run:
-    uv run main.py
+    uv run src/main.py
 format:
     uv run ruff format

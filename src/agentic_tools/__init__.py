@@ -8,18 +8,18 @@ from llama_index.core.tools import BaseTool, FunctionTool
 from llama_index.core.workflow import Context
 from llama_index.tools.tavily_research import TavilyToolSpec
 
-from agentic_tools.create_character import build_tool_for_creating_character
-from agentic_tools.illustrate_scene import (
+from .create_character import build_tool_for_creating_character
+from .illustrate_scene import (
     build_tool_for_setting_illustration_url,
     illustrate_a_scene,
 )
-from agentic_tools.misc import (
+from .misc import (
     ToolForConsultingTheModule,
     ToolForSuggestingChoices,
     build_tool_for_recording_a_clue,
     update_a_stat_tool,
 )
-from agentic_tools.roll_dices import roll_a_dice, roll_a_skill
+from .roll_dices import roll_a_dice, roll_a_skill
 
 
 class AgentContextAwareToolRetriever(ObjectRetriever[BaseTool]):

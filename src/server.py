@@ -195,5 +195,4 @@ async def sse_events(request: Request):
     )
 
 
-mount_chainlit(app=app, target="main.py", path="/chat")
-# To see how dice rolling works, uncomment the following line and comment out the line above.
+mount_chainlit(app=app, target="src/main.py", path="/chat")
