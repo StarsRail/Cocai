@@ -104,7 +104,7 @@ brew install --cask docker
 Optionally, also install [Stable Diffusion Web UI][sdwu]. This allows the chatbot to generate illustrations.
 
 [olm]: https://ollama.com/
-[sdwu]: https://github.com/AUTOMATIC1111/stable-diffusion-webui
+[sdwu]: https://github.com/lllyasviel/stable-diffusion-webui-forge
 
 #### Self-serve an embedding model
 
@@ -167,7 +167,7 @@ In the hard way, you want to create a separate terminal for each command:
    - ~~**minIO** object database (for persisting data for our web frontend, including user credentials and chat history -- not thought chains, though)~~
    - **Arize Phoenix** platform (for debugging thought chains)
    - **Qdrant** vector database (for the chatbot's short-term memory -- this is implemented via `mem0`)
-3. Optionally, start serving a "**Stable Diffusion web UI**" server with API support turned on by running `cd ../stable-diffusion-webui; ./webui.sh --api --nowebui --port 7860`.
+3. Optionally, start serving a "**Stable Diffusion web UI**" server with API support turned on by running `cd ../stable-diffusion-webui-forge; ./webui.sh --api --nowebui --port 7860`.
    - This enables your AI Keeper to draw illustrations.
    - If Stable Diffusion is not running, the AI Keeper will still be able to generate text-based responses. It's just that it won't be able to draw illustrations.
 4. Finally, start serving the **chatbot** by running `just serve`.

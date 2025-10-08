@@ -8,6 +8,6 @@ windows:
         - uv run uvicorn server:app --host 0.0.0.0 --port 8000
         - ollama serve
         - stable-diffusion:
-          - cd ../stable-diffusion-webui
-          - ./webui.sh --api --nowebui --port 7860
+            - cd ../stable-diffusion-webui-forge
+            - ./webui.sh --api --nowebui --port 7860
         - docker-compose up
