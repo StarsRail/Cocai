@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import asyncio
 import logging
-import os
 from collections.abc import Coroutine
 from typing import List
 
@@ -19,6 +18,7 @@ from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
 from agentic_tools.misc import ToolForConsultingTheModule
 from async_panes.history import update_history_if_needed
 from async_panes.scene import update_scene_if_needed
+from config import AppConfig
 from state import GameState
 from utils import env_flag, set_up_data_layer
 
@@ -62,7 +62,7 @@ def create_callback_manager() -> CallbackManager:
     return CallbackManager(cast(List[BaseCallbackHandler], callback_handlers))
 
 
-def set_up_llama_index():
+def set_up_llama_index(app_config: AppConfig):
     """
     One-time setup code for shared objects across all AgentRunners.
     """
@@ -71,24 +71,24 @@ def set_up_llama_index():
     # At least when Chainlit is involved, LLM initializations must happen upon the `@cl.on_chat_start` event,
     # not in the global scope.
     # Otherwise, it messes up with Arize Phoenix: LLM calls won't be captured as parts of an Agent Step.
-    if api_key := os.environ.get("OPENAI_API_KEY", None):
+    if app_config.openai_api_key:
         logger.info("Using OpenAI API.")
         from llama_index.llms.openai import OpenAI
 
         Settings.llm = OpenAI(
             model="gpt-4o-mini",
-            api_key=api_key,
+            api_key=app_config.openai_api_key,
             is_function_calling_model=True,
             is_chat_model=True,
         )
-    elif api_key := os.environ.get("TOGETHER_AI_API_KEY", None):
+    elif app_config.together_api_key:
         logger.info("Using Together AI API.")
         from llama_index.llms.openai_like import OpenAILike
 
         Settings.llm = OpenAILike(
             model="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
             api_base="https://api.together.xyz/v1",
-            api_key=api_key,
+            api_key=app_config.together_api_key,
             is_function_calling_model=True,
             is_chat_model=True,
         )
@@ -97,25 +97,23 @@ def set_up_llama_index():
         from llama_index.llms.openai_like import OpenAILike
 
         Settings.llm = OpenAILike(
-            model=os.environ.get("OLLAMA_LLM_ID", "llama3.1"),
-            api_base=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-            + "/v1",
+            model=app_config.ollama_llm_id,
+            api_base=app_config.ollama_base_url + "/v1",
             api_key="ollama",
             is_function_calling_model=True,
             is_chat_model=True,
         )
 
     Settings.embed_model = OllamaEmbedding(
-        # https://ollama.com/library/nomic-embed-text
-        model_name=os.environ.get("OLLAMA_EMBED_MODEL_ID", "nomic-embed-text:latest"),
-        base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+        model_name=app_config.ollama_embed_model_id,
+        base_url=app_config.ollama_base_url,
     )
     # ============= End of the code block for wiring on to models. =============
 
     # Override the default system prompt for ReAct chats.
     with open("prompts/system_prompt.md", encoding="utf-8") as f:
         MY_SYSTEM_PROMPT = f.read()
-    if env_flag("SHOULD_PREREAD_GAME_MODULE", default=False):
+    if app_config.should_preread_game_module:
         logger.info("Pre-reading the game module...")
         game_module_summary = ToolForConsultingTheModule().consult_the_game_module(
             "Story background, character requirements, and keeper's notes."
@@ -169,10 +167,11 @@ async def set_starters(user=None, default_path: str | None = None):
 @cl.on_chat_start
 async def factory():
     # Build LLMs/tools and prompts per session to avoid global background resources
-    my_system_prompt = set_up_llama_index()
+    app_config = AppConfig.from_env()
+    my_system_prompt = set_up_llama_index(app_config)
     # Each chat session should have his own agent runner, because each chat session has different chat histories.
     key = cl.user_session.get("id")
-    agent_memory = __prepare_memory(key)
+    agent_memory = __prepare_memory(key, app_config)
     agent = FunctionAgent(
         system_prompt=my_system_prompt,
         memory=agent_memory,
@@ -203,16 +202,16 @@ async def factory():
     )
 
 
-def __prepare_memory(key) -> Memory | Mem0Memory:
+def __prepare_memory(key, app_config: AppConfig) -> Memory | Mem0Memory:
     logger = logging.getLogger("prepare_memory")
-    if env_flag("DISABLE_MEMORY", default=False):
+    if app_config.disable_memory:
         logger.info("Memory is disabled. Using defaults.")
         return Memory.from_defaults(session_id="my_session", token_limit=40000)
-    if api_key := os.environ.get("MEM0_API_KEY", None):
+    if app_config.mem0_api_key:
         logger.info("Using Mem0 API.")
         memory = Mem0Memory.from_client(
             context={"user_id": key},
-            api_key=api_key,
+            api_key=app_config.mem0_api_key,
             search_msg_limit=4,  # optional, default is 5
             version="v1.1",
         )
@@ -234,17 +233,13 @@ def __prepare_memory(key) -> Memory | Mem0Memory:
             "embedder": {
                 "provider": "ollama",
                 "config": {
-                    "model": os.environ.get(
-                        "OLLAMA_EMBED_MODEL_ID", "nomic-embed-text:latest"
-                    ),
-                    "ollama_base_url": os.environ.get(
-                        "OLLAMA_BASE_URL", "http://localhost:11434"
-                    ),
+                    "model": app_config.ollama_embed_model_id,
+                    "ollama_base_url": app_config.ollama_base_url,
                     "embedding_dims": 768,  # Change this according to your local model's dimensions
                 },
             },
         }
-        if os.environ.get("OPENAI_API_KEY", None):
+        if app_config.openai_api_key:
             logger.info("Using OpenAI API for Mem0's LLM calls.")
             mem0_config["llm"] = {
                 "provider": "openai",
@@ -259,12 +254,10 @@ def __prepare_memory(key) -> Memory | Mem0Memory:
             mem0_config["llm"] = {
                 "provider": "ollama",
                 "config": {
-                    "model": os.environ.get("OLLAMA_LLM_ID", "llama3.1"),
+                    "model": app_config.ollama_llm_id,
                     "temperature": 0,
                     "max_tokens": 8000,
-                    "ollama_base_url": os.environ.get(
-                        "OLLAMA_BASE_URL", "http://localhost:11434"
-                    ),
+                    "ollama_base_url": app_config.ollama_base_url,
                 },
             }
         try:

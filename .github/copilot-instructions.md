@@ -54,7 +54,7 @@ Example references
 
 ### Gotchas and tips
 
-- Pull models before first run: `ollama pull llama3.1` and `ollama pull nomic-embed-text`.
+- Pull models before first run: `ollama pull gpt-oss:20b` and `ollama pull nomic-embed-text`.
 - Phoenix can be flaky locally; containerized Phoenix via docker-compose is the recommended path (see `docker-compose.yaml`).
 - MinIO: start once, create access key in console (`:9001`), then set `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY` in `.env`.
 - Dockerfile is a demo and may be outdated; prefer `just serve-all` on host.

@@ -122,7 +122,7 @@ The easiest (and perhaps highest-quality) way would be to provide an API key to 
 
 With the absence of an OpenAI API key, the chatbot will default to using [Ollama][olm], a program that serves LLMs locally.
 
-- Ensure that your local Ollama server has already downloaded the `llama3.1` model. If you haven't (or aren't sure), run `ollama pull llama3.1`.
+- Ensure that your local Ollama server has already downloaded the `gpt-oss:20b` model. If you haven't (or aren't sure), run `ollama pull gpt-oss:20b`.
 - If you want to use a different model that does not support function-calling, that's also possible. Revert [this commit][tc], so that you can use the ReAct paradigm to simulate function-calling capabilities with a purely semantic approach.
 
 [tc]: https://github.com/StarsRail/Cocai/commit/13d777767d1dd96024021c085247525ec52b79ba
