@@ -49,3 +49,20 @@ Keep pane update coroutines idempotent and resilient to cancellation
 (`asyncio.CancelledError` should be re-raised). Avoid performing the
 final UI/state mutation until the end of the coroutine so cancellation
 prevents partial commits.
+
+## Status Phases (SSE)
+
+History (`type=history_status`): `evaluating`, `summarizing`, `updated`,
+`unchanged`, `cancelled`, `error`.
+
+Scene (`type=scene_status`): `evaluating`, `describing`, `imaging`,
+`imaging_failed`, `updated`, `unchanged`, `cancelled`, `error`.
+
+Frontend (`public/play.js`) listens and toggles CSS classes:
+
+* `loading-soft`: animated stripe overlay while a phase is in progress.
+* `updating-soft`: pulse highlight after successful update.
+
+Styles live in `public/play.css`. We intentionally use *indeterminate*
+feedback (no percentage bars) because LLM + diffusion latency is highly
+variable; a fake ETA would mislead users.

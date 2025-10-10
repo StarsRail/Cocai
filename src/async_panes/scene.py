@@ -45,30 +45,46 @@ async def update_scene_if_needed(
         logger.debug("No transcript found for scene update.")
         return
     try:
-        if not await __should_update_scene(transcript):
+        broadcaster.publish({"type": "scene_status", "phase": "evaluating"})
+        should = await __should_update_scene(transcript)
+        if not should:
+            broadcaster.publish({"type": "scene_status", "phase": "unchanged"})
             return
+        broadcaster.publish({"type": "scene_status", "phase": "describing"})
         desc = await __describe_visual_scene(transcript)
         if not desc.strip():
             logger.debug("Scene change detected but no description produced; skipping.")
+            broadcaster.publish({"type": "scene_status", "phase": "unchanged"})
             return
+        broadcaster.publish({"type": "scene_status", "phase": "imaging"})
         url = await __generate_scene_image(desc)
         if not url:
             logger.info("Scene image generation unavailable; skipping UI update.")
+            broadcaster.publish({"type": "scene_status", "phase": "imaging_failed"})
             return
         async with ctx.store.edit_state() as ctx_state:
             user_visible_state: GameState = ctx_state.get("user-visible")
             user_visible_state.illustration_url = url
         try:
             broadcaster.publish({"type": "illustration", "url": url})
+            broadcaster.publish({"type": "scene_status", "phase": "updated"})
         except Exception as e:
             logger.error("Failed to publish updated illustration.", exc_info=e)
     except asyncio.CancelledError:
         logging.getLogger("auto_scene_update").info("auto_scene_update task cancelled")
+        try:
+            broadcaster.publish({"type": "scene_status", "phase": "cancelled"})
+        except Exception:
+            pass
         raise
     except Exception as e:
         logging.getLogger("auto_scene_update").error(
             "Auto scene update failed.", exc_info=e
         )
+        try:
+            broadcaster.publish({"type": "scene_status", "phase": "error"})
+        except Exception:
+            pass
 
 
 async def __should_update_scene(transcript: list[dict[str, str]]) -> bool:

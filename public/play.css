@@ -62,6 +62,32 @@ body {
   max-height: 100%;
   object-fit: contain;
 }
+
+/* Subtle loading / updating indicators */
+.loading-soft {
+  position: relative;
+}
+.loading-soft::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, rgba(124,92,255,0.08) 0 12px, rgba(124,92,255,0.02) 12px 24px);
+  animation: pane-stripes 1.4s linear infinite;
+  pointer-events: none;
+  border-radius: 4px;
+}
+@keyframes pane-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 48px 0; }
+}
+.updating-soft {
+  animation: pane-pulse 1.2s ease;
+}
+@keyframes pane-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(124,92,255,0.0); }
+  40% { box-shadow: 0 0 0 4px rgba(124,92,255,0.18); }
+  100% { box-shadow: 0 0 0 0 rgba(124,92,255,0.0); }
+}
 /* Accordion overrides (kept simple) */
 .acc-item {
   border: 1px solid var(--border);

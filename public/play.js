@@ -44,6 +44,43 @@ function renderIllustration (url) {
   else img.removeAttribute('src')
 }
 
+// Subtle status indicators state
+const paneStatus = {
+  history: { phase: 'idle', startedAt: 0 },
+  scene: { phase: 'idle', startedAt: 0 }
+}
+
+function applyHistoryStatus (phase) {
+  const el = document.getElementById('history')
+  if (!el) return
+  paneStatus.history.phase = phase
+  el.classList.remove('loading-soft', 'updating-soft')
+  if (phase === 'evaluating' || phase === 'summarizing') {
+    el.classList.add('loading-soft')
+    if (!el.dataset.originalTitle) el.dataset.originalTitle = el.title || ''
+    el.title = 'Updating story summary…'
+  } else if (phase === 'updated') {
+    el.classList.add('updating-soft')
+    setTimeout(() => el.classList.remove('updating-soft'), 1200)
+    el.title = el.dataset.originalTitle || ''
+  } else if (['unchanged', 'cancelled', 'error'].includes(phase)) {
+    el.title = el.dataset.originalTitle || ''
+  }
+}
+
+function applySceneStatus (phase) {
+  const container = document.getElementById('illustration')
+  if (!container) return
+  paneStatus.scene.phase = phase
+  container.classList.remove('loading-soft', 'updating-soft')
+  if (['evaluating', 'describing', 'imaging'].includes(phase)) {
+    container.classList.add('loading-soft')
+  } else if (phase === 'updated') {
+    container.classList.add('updating-soft')
+    setTimeout(() => container.classList.remove('updating-soft'), 1200)
+  }
+}
+
 function renderPC (pc) {
   document.getElementById('pc-name').textContent = pc?.name || 'Investigator'
   const stats = document.getElementById('pc-stats')
@@ -165,6 +202,10 @@ function listenEvents () {
           renderClues(msg.clues)
         } else if (msg.type === 'illustration') {
           renderIllustration(msg.url)
+        } else if (msg.type === 'history_status') {
+          applyHistoryStatus(msg.phase)
+        } else if (msg.type === 'scene_status') {
+          applySceneStatus(msg.phase)
         } else if (msg.type === 'pc') {
           renderPC(msg.pc)
         } else if (msg.type === 'server_shutdown') {

@@ -27,6 +27,7 @@ async def update_history_if_needed(
     Check if the latest exchange advanced the in-world story. If so, update the left-pane History text.
     """
     logger = logging.getLogger("auto_history_update")
+    # Phase: building transcript
     transcript = build_transcript(
         memory=memory,
         last_user_msg=last_user_msg,
@@ -36,6 +37,12 @@ async def update_history_if_needed(
         logger.warning("No transcript found for history update.")
         return
     try:
+        broadcaster.publish({"type": "history_status", "phase": "evaluating"})
+        should = await __should_update_history(transcript)
+        if not should:
+            broadcaster.publish({"type": "history_status", "phase": "unchanged"})
+            return
+        broadcaster.publish({"type": "history_status", "phase": "summarizing"})
         if await __should_update_history(transcript):
             read_only_user_visible_state: GameState = await ctx.store.get(
                 "user-visible"
@@ -49,13 +56,24 @@ async def update_history_if_needed(
                     broadcaster.publish(
                         {"type": "history", "history": user_visible_state.history}
                     )
+                    broadcaster.publish({"type": "history_status", "phase": "updated"})
                 except Exception as e:
                     logger.error("Failed to publish updated history.", exc_info=e)
+        else:
+            broadcaster.publish({"type": "history_status", "phase": "unchanged"})
     except asyncio.CancelledError:
         logger.info("auto_history_update task was cancelled")
+        try:
+            broadcaster.publish({"type": "history_status", "phase": "cancelled"})
+        except Exception:
+            pass
         raise
     except Exception as e:
         logger.error("Auto history update failed.", exc_info=e)
+        try:
+            broadcaster.publish({"type": "history_status", "phase": "error"})
+        except Exception:
+            pass
 
 
 def __format_recent(transcript: list[dict[str, str]], k: int) -> str:
