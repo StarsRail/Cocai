@@ -18,7 +18,30 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
-from utils import env_flag
+from utils import FALSY_STRINGS, TRUTHY_STRINGS
+
+
+def env_flag(name: str, default: bool = True) -> bool:
+    """
+    Read a boolean flag from environment variables with a forgiving parser.
+
+    - Truthy values (case-insensitive): 1, true, yes, y, on, t
+    - Falsy values (case-insensitive): 0, false, no, n, off, f
+    - Any other non-empty value defaults to False, and missing env var returns
+      the provided default.
+
+    This function is intentionally permissive to avoid surprises in
+    container/CI environments where flags can be provided in varying forms.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    val = str(raw).strip().lower()
+    if val in TRUTHY_STRINGS:
+        return True
+    if val in FALSY_STRINGS:
+        return False
+    return False
 
 
 @dataclass(slots=True)

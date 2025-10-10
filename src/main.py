@@ -21,7 +21,7 @@ from async_panes.history import update_history_if_needed
 from async_panes.scene import update_scene_if_needed
 from config import AppConfig
 from state import GameState
-from utils import env_flag, set_up_data_layer
+from utils import set_up_data_layer
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +204,11 @@ async def factory():
         "agent_memory",
         agent_memory,
     )
+    cl.user_session.set(
+        "app_config",
+        app_config,
+    )
+    logger.info("Set up agent, context, and memory for the chat session.")
 
 
 def __prepare_memory(key, app_config: AppConfig) -> Memory | Mem0Memory:
@@ -363,7 +368,14 @@ async def handle_message_from_user(message: cl.Message):
         response_message.content or ""
     )
 
-    if env_flag("ENABLE_AUTO_HISTORY_UPDATE", default=True):
+    config_from_session = cl.user_session.get("app_config")
+    if config_from_session is None or not isinstance(config_from_session, AppConfig):
+        await cl.Message(
+            content="AppConfig not found. Please restart the chat session."
+        ).send()
+        return
+    config: AppConfig = config_from_session
+    if config.enable_auto_history_update:
         coroutine_for_updating_history: Coroutine = update_history_if_needed(
             ctx=agent_ctx,
             memory=agent_memory,
@@ -382,7 +394,7 @@ async def handle_message_from_user(message: cl.Message):
         )
         logger.info("Saved asyncio task for updating history to user session.")
 
-    if env_flag("ENABLE_AUTO_SCENE_UPDATE", default=True):
+    if config.enable_auto_scene_update:
         coroutine_for_updating_scene: Coroutine = update_scene_if_needed(
             ctx=agent_ctx,
             memory=agent_memory,
