@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from collections.abc import Coroutine
+from pathlib import Path
 from typing import List
 
 import chainlit as cl
@@ -115,7 +116,10 @@ def set_up_llama_index(app_config: AppConfig):
         MY_SYSTEM_PROMPT = f.read()
     if app_config.should_preread_game_module:
         logger.info("Pre-reading the game module...")
-        game_module_summary = ToolForConsultingTheModule().consult_the_game_module(
+        game_module_summary = ToolForConsultingTheModule(
+            path_to_module_folder=Path(app_config.game_module_path),
+            should_reuse_existing_index=app_config.should_reuse_existing_index,
+        ).consult_the_game_module(
             "Story background, character requirements, and keeper's notes."
         )
         logger.info("Finished pre-reading the game module.")

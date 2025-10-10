@@ -21,7 +21,6 @@ from pydantic import Field
 
 from events import broadcaster
 from state import Clue, GameState
-from utils import env_flag
 
 
 class ToolForSuggestingChoices:
@@ -44,9 +43,8 @@ class ToolForConsultingTheModule:
 
     def __init__(
         self,
-        path_to_module_folder: Path = Path(
-            os.environ.get("GAME_MODULE_PATH", "game_modules/Clean-Up-Aisle-Four")
-        ),
+        path_to_module_folder: Path = Path("game_modules/Clean-Up-Aisle-Four"),
+        should_reuse_existing_index: bool = True,
     ):
         logger = logging.getLogger("ToolForConsultingTheModule")
 
@@ -60,8 +58,7 @@ class ToolForConsultingTheModule:
         try:
             client = qdrant_client.QdrantClient(host=qdrant_host, port=qdrant_port)
             vector_store = QdrantVectorStore(client=client, collection_name=collection)
-            reuse = env_flag("SHOULD_REUSE_EXISTING_INDEX", True)
-            if client.collection_exists(collection) and reuse:
+            if client.collection_exists(collection) and should_reuse_existing_index:
                 logger.info(
                     f"Qdrant collection '{collection}' exists at {qdrant_host}:{qdrant_port}. Loading."
                 )
