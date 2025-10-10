@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-import asyncio
 import logging
-from collections.abc import Coroutine
 from pathlib import Path
 from typing import List
 
@@ -18,6 +16,7 @@ from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
 from agentic_tools.misc import ToolForConsultingTheModule
 from async_panes.history import update_history_if_needed
+from async_panes.pane_update_manager import BackgroundPaneUpdateManager
 from async_panes.scene import update_scene_if_needed
 from config import AppConfig
 from state import GameState
@@ -208,6 +207,8 @@ async def factory():
         "app_config",
         app_config,
     )
+    # Initialize pane update manager for this session
+    cl.user_session.set("pane_update_manager", BackgroundPaneUpdateManager())
     logger.info("Set up agent, context, and memory for the chat session.")
 
 
@@ -287,14 +288,8 @@ def __prepare_memory(key, app_config: AppConfig) -> Memory | Mem0Memory:
 async def cleanup():
     logger = logging.getLogger("chat_cleanup")
     try:
-        if asyncio_task := cl.user_session.get("asyncio_task_for_updating_history"):
-            if not asyncio_task.done():
-                logger.info("Cancelling background history update task on chat end...")
-                asyncio_task.cancel()
-        if asyncio_task2 := cl.user_session.get("asyncio_task_for_updating_scene"):
-            if not asyncio_task2.done():
-                logger.info("Cancelling background scene update task on chat end...")
-                asyncio_task2.cancel()
+        if manager := cl.user_session.get("pane_update_manager"):
+            manager.cancel_all()
     except Exception as e:
         logger.warning(f"Cleanup encountered an issue: {e}")
 
@@ -302,25 +297,14 @@ async def cleanup():
 @cl.on_message
 async def handle_message_from_user(message: cl.Message):
     logger = logging.getLogger("handle_message_from_user")
-
-    # Get `asyncio_task_for_updating_history` from the user session. If it is not yet done, kill it first.
-    if existing_asyncio_task := cl.user_session.get(
-        "asyncio_task_for_updating_history"
-    ):
-        logger.info("Found existing asyncio task for updating history.")
-        if existing_asyncio_task.done():
-            logger.info("But it's already done.")
-        else:
-            logger.info("It's not yet done. Killing it.")
-            existing_asyncio_task.cancel()
-    # Same for scene updates
-    if existing_scene_task := cl.user_session.get("asyncio_task_for_updating_scene"):
-        logger.info("Found existing asyncio task for updating scene.")
-        if existing_scene_task.done():
-            logger.info("But it's already done.")
-        else:
-            logger.info("It's not yet done. Killing it.")
-            existing_scene_task.cancel()
+    manager: BackgroundPaneUpdateManager | None = cl.user_session.get(
+        "pane_update_manager"
+    )
+    if manager is None:
+        manager = BackgroundPaneUpdateManager()
+        cl.user_session.set("pane_update_manager", manager)
+    # Advance generation for this new user message (cancels per-pane when rescheduling)
+    gen = manager.advance_generation()
 
     agent_from_session = cl.user_session.get("agent")
     if agent_from_session is None or not isinstance(agent_from_session, FunctionAgent):
@@ -376,37 +360,31 @@ async def handle_message_from_user(message: cl.Message):
         return
     config: AppConfig = config_from_session
     if config.enable_auto_history_update:
-        coroutine_for_updating_history: Coroutine = update_history_if_needed(
-            ctx=agent_ctx,
-            memory=agent_memory,
-            last_user_msg=message.content,
-            last_agent_msg=agent_text,
+        manager.schedule(
+            "history",
+            gen,
+            lambda: update_history_if_needed(
+                ctx=agent_ctx,
+                memory=agent_memory,
+                last_user_msg=message.content,
+                last_agent_msg=agent_text,
+            ),
+            timeout=60.0,
+            debounce=0.15,
         )
-        asyncio_task_for_updating_history: asyncio.Task = asyncio.create_task(
-            # The create_task() approach is known as "fire and forget." To run it, you must be within an event loop.
-            coroutine_for_updating_history
-        )
-        logger.info("Created new asyncio task for updating history. Saving it.")
-        # Save the coroutine to the user session, so that it can be cancelled when a new message arrives.
-        cl.user_session.set(
-            "asyncio_task_for_updating_history",
-            asyncio_task_for_updating_history,
-        )
-        logger.info("Saved asyncio task for updating history to user session.")
+        logger.info("Scheduled background history update (gen=%s)", gen)
 
     if config.enable_auto_scene_update:
-        coroutine_for_updating_scene: Coroutine = update_scene_if_needed(
-            ctx=agent_ctx,
-            memory=agent_memory,
-            last_user_msg=message.content,
-            last_agent_msg=agent_text,
+        manager.schedule(
+            "scene",
+            gen,
+            lambda: update_scene_if_needed(
+                ctx=agent_ctx,
+                memory=agent_memory,
+                last_user_msg=message.content,
+                last_agent_msg=agent_text,
+            ),
+            timeout=120.0,
+            debounce=0.15,
         )
-        asyncio_task_for_updating_scene: asyncio.Task = asyncio.create_task(
-            coroutine_for_updating_scene
-        )
-        logger.info("Created new asyncio task for updating scene. Saving it.")
-        cl.user_session.set(
-            "asyncio_task_for_updating_scene",
-            asyncio_task_for_updating_scene,
-        )
-        logger.info("Saved asyncio task for updating scene to user session.")
+        logger.info("Scheduled background scene update (gen=%s)", gen)
