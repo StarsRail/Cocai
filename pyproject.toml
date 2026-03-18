@@ -28,9 +28,11 @@ dependencies = [
     "jinja2>=3.1.5",
     "llama-index-vector-stores-qdrant>=0.4.0",
     "llama-index-utils-workflow>=0.3.5",
-        "sse-starlette>=1.8.1",
-        "httpx>=0.27.2",
-        "tenacity>=9.0.0",
+    "sse-starlette>=1.8.1",
+    "httpx>=0.27.2",
+    "tenacity>=9.0.0",
+    # rname is pinned at 0.3.7 because of a breaking change in 1.0.0 that causes issues with Cochar.
+    "rname~=0.3.7",
 ]
 
 [dependency-groups]
