@@ -120,6 +120,8 @@ ollama pull nomic-embed-text
 
 The easiest (and perhaps highest-quality) way would be to provide an API key to OpenAI. Simply add `OPENAI_API_KEY=sk-...` to a `.env` file in the project root.
 
+If you'd rather use OpenRouter, add `OPENROUTER_API_KEY=...` to the same `.env` file instead. Optionally specify a model with `OPENROUTER_LLM_ID=...`.
+
 With the absence of an OpenAI API key, the chatbot will default to using [Ollama][olm], a program that serves LLMs locally.
 
 - Ensure that your local Ollama server has already downloaded the `gpt-oss:20b` model. If you haven't (or aren't sure), run `ollama pull gpt-oss:20b`.
@@ -143,6 +145,8 @@ MINIO_SECRET_KEY="bar"
 Optionally, if you want to enable the chatbot to search the internet, you can provide a Tavily API key. Add `TAVILY_API_KEY=...` to `.env`.
 
 Optionally, if you prefer to use OpenAI ("GPT") as your LLM, add `OPENAI_API_KEY=...` to `.env`.
+
+Optionally, if you prefer to use OpenRouter, add `OPENROUTER_API_KEY=...` to `.env` and (optionally) `OPENROUTER_LLM_ID=...`.
 
 Optionally, if you prefer to use a hosted open LLM, you can try [Together.ai](https://www.together.ai/). Add `TOGETHER_AI_API_KEY=...` to `.env`.
 

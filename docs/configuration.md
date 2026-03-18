@@ -6,13 +6,13 @@ Runtime settings are centralized in `src/config.py` via the `AppConfig` dataclas
 
 - Easier unit testing (`AppConfig.from_env(custom_mapping)`).
 - Single source of truth for future GUI / admin panel.
-- Explicit precedence: LLM provider (OpenAI > Together > Ollama); memory (disable flag > cloud Mem0 > local Mem0 > fallback default memory).
+- Explicit precedence: LLM provider (OpenAI > OpenRouter > Together > Ollama); memory (disable flag > cloud Mem0 > local Mem0 > fallback default memory).
 
 ## Key Fields (Excerpt)
 
 | Concern | Fields |
 |---------|--------|
-| LLM provider | `openai_api_key`, `together_api_key`, `ollama_llm_id`, `ollama_base_url` |
+| LLM provider | `openai_api_key`, `openrouter_api_key`, `openrouter_llm_id`, `together_api_key`, `ollama_llm_id`, `ollama_base_url` |
 | Embeddings | `ollama_embed_model_id` |
 | Module RAG | `game_module_path`, `should_preread_game_module`, `should_reuse_existing_index` |
 | Memory | `disable_memory`, `mem0_api_key` |

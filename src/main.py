@@ -81,6 +81,17 @@ def set_up_llama_index(app_config: AppConfig):
             is_function_calling_model=True,
             is_chat_model=True,
         )
+    elif app_config.openrouter_api_key:
+        logger.info("Using OpenRouter API.")
+        from llama_index.llms.openai_like import OpenAILike
+
+        Settings.llm = OpenAILike(
+            model=app_config.openrouter_llm_id or "openrouter/free",
+            api_base="https://openrouter.ai/api/v1",
+            api_key=app_config.openrouter_api_key,
+            is_function_calling_model=True,
+            is_chat_model=True,
+        )
     elif app_config.together_api_key:
         logger.info("Using Together AI API.")
         from llama_index.llms.openai_like import OpenAILike
@@ -257,6 +268,18 @@ def __prepare_memory(key, app_config: AppConfig) -> Memory | Mem0Memory:
                     "model": "gpt-4o-mini",
                     "temperature": 0,
                     "max_tokens": 8000,
+                },
+            }
+        elif app_config.openrouter_api_key:
+            logger.info("Using OpenRouter API for Mem0's LLM calls.")
+            mem0_config["llm"] = {
+                "provider": "openai",
+                "config": {
+                    "model": app_config.openrouter_llm_id or "openrouter/free",
+                    "temperature": 0,
+                    "max_tokens": 8000,
+                    "api_key": app_config.openrouter_api_key,
+                    "base_url": "https://openrouter.ai/api/v1",
                 },
             }
         else:

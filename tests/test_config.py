@@ -5,6 +5,8 @@ def test_config_defaults(monkeypatch):
     # Clear potentially set vars
     for k in [
         "OPENAI_API_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_LLM_ID",
         "TOGETHER_AI_API_KEY",
         "MEM0_API_KEY",
         "DISABLE_MEMORY",
@@ -26,11 +28,33 @@ def test_config_llm_precedence_openai_over_together(monkeypatch):
     assert cfg.llm_provider == "openai"
 
 
+def test_config_llm_precedence_openai_over_openrouter(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-openrouter")
+    cfg = AppConfig.from_env()
+    assert cfg.llm_provider == "openai"
+
+
+def test_config_llm_precedence_openrouter_over_together(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-openrouter")
+    monkeypatch.setenv("TOGETHER_AI_API_KEY", "sk-together")
+    cfg = AppConfig.from_env()
+    assert cfg.llm_provider == "openrouter"
+
+
 def test_config_llm_precedence_together_over_ollama(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.setenv("TOGETHER_AI_API_KEY", "sk-together")
     cfg = AppConfig.from_env()
     assert cfg.llm_provider == "together"
+
+
+def test_config_openrouter_llm_id(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_LLM_ID", "anthropic/claude-3.5-sonnet")
+    cfg = AppConfig.from_env()
+    assert cfg.openrouter_llm_id == "anthropic/claude-3.5-sonnet"
 
 
 def test_config_preread_flag(monkeypatch):

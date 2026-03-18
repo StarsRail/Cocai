@@ -7,7 +7,7 @@ settings so they can be:
   * Serialized (later) for persistence.
 
 Environment precedence / notes:
-  - LLM provider precedence: OPENAI_API_KEY > TOGETHER_AI_API_KEY > Ollama local.
+  - LLM provider precedence: OPENAI_API_KEY > OPENROUTER_API_KEY > TOGETHER_AI_API_KEY > Ollama local.
   - Memory: DISABLE_MEMORY short-circuits; else MEM0_API_KEY selects cloud Mem0; else local Mem0; fallback to default Memory on error.
     - Feature flags use forgiving boolean parsing via `env_flag`.
 """
@@ -48,6 +48,8 @@ def env_flag(name: str, default: bool = True) -> bool:
 class AppConfig:
     # LLM / Embeddings
     openai_api_key: str | None = None
+    openrouter_api_key: str | None = None
+    openrouter_llm_id: str | None = None
     together_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"
     ollama_llm_id: str = "gpt-oss:20b"
@@ -82,6 +84,8 @@ class AppConfig:
     def llm_provider(self) -> str:
         if self.openai_api_key:
             return "openai"
+        if self.openrouter_api_key:
+            return "openrouter"
         if self.together_api_key:
             return "together"
         return "ollama"
@@ -91,6 +95,8 @@ class AppConfig:
         e = env or os.environ
         return cls(
             openai_api_key=e.get("OPENAI_API_KEY"),
+            openrouter_api_key=e.get("OPENROUTER_API_KEY"),
+            openrouter_llm_id=e.get("OPENROUTER_LLM_ID"),
             together_api_key=e.get("TOGETHER_AI_API_KEY"),
             ollama_base_url=e.get("OLLAMA_BASE_URL", "http://localhost:11434"),
             ollama_llm_id=e.get("OLLAMA_LLM_ID", "gpt-oss:20b"),
