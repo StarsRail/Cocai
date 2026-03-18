@@ -5,8 +5,16 @@ Game state management for syncing with the user interface.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 
 from cochar.character import Character
+
+
+class GamePhase(Enum):
+    """Tracks where we are in the game flow."""
+
+    CHARACTER_CREATION = "character_creation"
+    ADVENTURE = "adventure"
 
 
 @dataclass
@@ -23,6 +31,7 @@ class Clue:
 class GameState:
     """In-memory game state to be shared with the UI via SSE."""
 
+    phase: GamePhase = GamePhase.CHARACTER_CREATION
     history: str = "(start your adventure to see story progression here)"
     clues: list[Clue] = field(default_factory=list)
     illustration_url: str | None = "/public/logo_dark.png"

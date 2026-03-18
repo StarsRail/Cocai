@@ -9,7 +9,7 @@ from llama_index.core.workflow import Context
 from pydantic import BaseModel, Field
 
 from events import broadcaster
-from state import GameState
+from state import GamePhase, GameState
 
 
 class CreateCharacterRequest(BaseModel):
@@ -83,6 +83,7 @@ async def create_character(ctx: Context, *args, **kwargs) -> dict:
         user_visible_state = ctx_state.get("user-visible")
         if type(user_visible_state) is GameState:
             user_visible_state.pc = character
+            user_visible_state.phase = GamePhase.ADVENTURE
         character_as_json = user_visible_state.to_dict().get("pc", {})
     try:
         broadcaster.publish({"type": "pc", "pc": character_as_json})

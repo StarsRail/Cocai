@@ -19,7 +19,7 @@ from async_panes.history import update_history_if_needed
 from async_panes.pane_update_manager import BackgroundPaneUpdateManager
 from async_panes.scene import update_scene_if_needed
 from config import AppConfig
-from state import GameState
+from state import GamePhase, GameState
 from utils import set_up_data_layer
 
 logger = logging.getLogger(__name__)
@@ -317,6 +317,36 @@ async def cleanup():
         logger.warning(f"Cleanup encountered an issue: {e}")
 
 
+def _build_guardrail_context(game_state: GameState) -> str:
+    """Return a bracketed context block injected before the player's message.
+
+    This gives the LLM phase-aware reminders every turn so it doesn't
+    forget critical rules (e.g. no adventure without a character sheet).
+    """
+    parts: list[str] = []
+
+    if game_state.phase == GamePhase.CHARACTER_CREATION or game_state.pc is None:
+        parts.append(
+            "[KEEPER NOTES — The player does NOT have a character yet. "
+            "You MUST guide them to create one using the `create_character` tool "
+            "before starting any in-game scenes or investigation. "
+            "Do not narrate plot events until a character exists.]"
+        )
+    else:
+        # Summarize the PC so the LLM remembers who the investigator is.
+        pc_dict = game_state.to_dict().get("pc", {})
+        name = pc_dict.get("name", "Unknown")
+        parts.append(f"[KEEPER NOTES — Current investigator: {name}.]")
+
+    # Universal reminder every turn (cheap but effective).
+    parts.append(
+        "[RULE REMINDER — NEVER fabricate dice outcomes. "
+        "ALL skill checks and rolls MUST use the `roll_a_skill` or `roll_a_dice` tool.]"
+    )
+
+    return "\n".join(parts)
+
+
 @cl.on_message
 async def handle_message_from_user(message: cl.Message):
     logger = logging.getLogger("handle_message_from_user")
@@ -361,8 +391,18 @@ async def handle_message_from_user(message: cl.Message):
         # Don't use `message` directly, because it is not serializable (by the default serializer of `DictState`, probably).
         ctx_state["user_message_id"] = message.id
         ctx_state["user_message_thread_id"] = message.thread_id
+
+    # Build dynamic guardrail context based on current game state.
+    game_state: GameState = await agent_ctx.store.get("user-visible")
+    guardrail_prefix = _build_guardrail_context(game_state)
+    augmented_message = (
+        f"{guardrail_prefix}\n\n{message.content}"
+        if guardrail_prefix
+        else message.content
+    )
+
     # Run the agent.
-    handler = agent.run(message.content, context=agent_ctx, memory=agent_memory)
+    handler = agent.run(augmented_message, context=agent_ctx, memory=agent_memory)
     response_message = cl.Message(content="")
     _agent_text_buffer: List[str] = []
     async for event in handler.stream_events():
