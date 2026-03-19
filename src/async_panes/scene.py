@@ -17,7 +17,7 @@ import asyncio
 import base64
 import logging
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -153,7 +153,7 @@ async def __generate_scene_image(description: str) -> str | None:
         image = base64.b64decode(b64)
         out_dir = Path("public/illustrations")
         out_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         fname = f"scene-{ts}.png"
         (out_dir / fname).write_bytes(image)
         return f"/public/illustrations/{fname}"
