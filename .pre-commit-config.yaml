@@ -28,7 +28,12 @@ repos:
         files: ^(src|tests)/.*\.py$
         additional_dependencies:
           - types-requests
-        args: [--ignore-missing-imports, "--cache-dir=.cache/mypy"]
+        args:
+          [
+            --ignore-missing-imports,
+            "--cache-dir=.cache/mypy",
+            "--python-version=3.14",
+          ]
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.21.2
     hooks:
