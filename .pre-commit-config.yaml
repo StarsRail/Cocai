@@ -24,6 +24,8 @@ repos:
     rev: v1.19.1
     hooks:
       - id: mypy
+        pass_filenames: true
+        files: ^(src|tests)/.*\.py$
         additional_dependencies:
           - types-requests
         args: [--ignore-missing-imports, "--cache-dir=.cache/mypy"]
