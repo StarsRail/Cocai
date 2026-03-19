@@ -75,7 +75,7 @@ async def test_should_update_scene_and_generate_image(monkeypatch):
         def __init__(self):
             self.data = {"user-visible": SimpleNamespace(illustration_url=None)}
 
-        async def edit_state(self):
+        def edit_state(self):
             outer = self
 
             class CtxMgr:
