@@ -24,7 +24,11 @@ from utils import set_up_data_layer
 
 logger = logging.getLogger(__name__)
 
-set_up_data_layer()
+
+@cl.data_layer
+def get_data_layer():
+    return set_up_data_layer()
+
 
 try:
     # "Phoenix can display in real time the traces automatically collected from your LlamaIndex application."

@@ -4,7 +4,6 @@ import sys
 from typing import Any, Dict, Union
 
 import boto3
-import chainlit.data as cl_data
 from chainlit.data.sql_alchemy import SQLAlchemyDataLayer
 from chainlit.data.storage_clients.base import BaseStorageClient
 from chainlit.logger import logger
@@ -129,8 +128,8 @@ def set_up_data_layer(sqlite_file_path: str = ".chainlit/data.db"):
         aws_secret_access_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
         verify_ssl=False,
     )
-    # Set the data layer to use the SQLAlchemyDataLayer with the connection info.
-    cl_data._data_layer = SQLAlchemyDataLayer(
+    # Build and return the SQLAlchemyDataLayer for Chainlit's @data_layer hook.
+    return SQLAlchemyDataLayer(
         conninfo=f"sqlite+aiosqlite:///{sqlite_file_path}",  # https://stackoverflow.com/a/72334692/27163563,
         storage_provider=storage_client,
     )
