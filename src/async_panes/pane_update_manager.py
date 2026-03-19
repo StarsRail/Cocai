@@ -21,6 +21,7 @@ add complexity without much benefit for this use case.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -70,6 +71,7 @@ class BackgroundPaneUpdateManager:
         *,
         timeout: float | None = None,
         debounce: float | None = None,
+        task_context: contextvars.Context | None = None,
     ) -> None:
         """Schedule work for a pane tied to a specific generation.
 
@@ -85,6 +87,8 @@ class BackgroundPaneUpdateManager:
                       debounce, the stale task will still run but commit will be skipped
                       due to generation mismatch). For strict debounce that avoids even
                       starting, implement externally before calling schedule().
+            task_context: Optional explicit contextvars.Context used when creating
+                          the task (useful for OpenTelemetry parent span propagation).
         """
         # Cancel existing
         if (existing := self._tasks.get(pane)) and not existing.task.done():
@@ -115,9 +119,16 @@ class BackgroundPaneUpdateManager:
                 if current and current.task is asyncio.current_task():
                     self._tasks.pop(pane, None)
 
-        task = asyncio.create_task(
-            runner(generation), name=f"pane-update:{pane}:g{generation}"
-        )
+        if task_context is not None:
+            task = asyncio.create_task(
+                runner(generation),
+                name=f"pane-update:{pane}:g{generation}",
+                context=task_context,
+            )
+        else:
+            task = asyncio.create_task(
+                runner(generation), name=f"pane-update:{pane}:g{generation}"
+            )
         self._tasks[pane] = _Scheduled(task=task, generation=generation)
 
     def task_for(self, pane: str) -> asyncio.Task | None:

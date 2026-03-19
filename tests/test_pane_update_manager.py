@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 
 import pytest
 
@@ -43,3 +44,26 @@ async def test_cancel_all():
     task = manager.task_for("scene")
     # Task reference removed after cancel_all
     assert task is None or task.cancelled() or task.done()
+
+
+@pytest.mark.asyncio
+async def test_schedule_propagates_explicit_task_context():
+    manager = BackgroundPaneUpdateManager()
+    marker_var: contextvars.ContextVar[str] = contextvars.ContextVar("marker")
+    marker_var.set("parent-span-context")
+
+    seen: list[str | None] = []
+
+    async def work():
+        seen.append(marker_var.get(None))
+
+    gen = manager.advance_generation()
+    manager.schedule(
+        "history",
+        gen,
+        work,
+        task_context=contextvars.copy_context(),
+    )
+
+    await asyncio.sleep(0.05)
+    assert seen == ["parent-span-context"]
