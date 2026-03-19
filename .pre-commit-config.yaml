@@ -1,7 +1,7 @@
 # Apply to all files without committing:
-#   pre-commit run --all-files
+#   prek run --all-files
 # Update this file:
-#   pre-commit autoupdate
+#   prek autoupdate
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
