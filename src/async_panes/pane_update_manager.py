@@ -101,9 +101,7 @@ class BackgroundPaneUpdateManager:
                 return
             try:
                 if timeout is not None:
-                    # Use asyncio.timeout context in 3.11+
-                    async with asyncio.timeout(timeout):
-                        await work_factory()
+                    await asyncio.wait_for(work_factory(), timeout=timeout)
                 else:
                     await work_factory()
             except asyncio.CancelledError:
