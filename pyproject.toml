@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "aiosqlite>=0.20.0",
-    "arize-phoenix-otel>=0.4.1",
+    "arize-phoenix-otel>=0.15.0",
     "boto3>=1.35.39",
     "chainlit>=2.0.0",
     "cochar>=1.0.1",
