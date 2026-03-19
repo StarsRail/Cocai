@@ -1,5 +1,5 @@
 # Use an official Python image
-FROM ghcr.io/astral-sh/uv:0.4.20-python3.12-bookworm
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm
 
 # Install necessary dependencies and tools
 RUN apt-get update && apt-get install -y \
