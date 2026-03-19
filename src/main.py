@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import logging
+from contextvars import copy_context
 from pathlib import Path
 from typing import List
 
@@ -12,6 +13,13 @@ from llama_index.core.workflow import Context
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.memory.mem0 import Mem0Memory
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from openinference.semconv.trace import (
+    OpenInferenceMimeTypeValues,
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
 from agentic_tools.misc import ToolForConsultingTheModule
@@ -23,6 +31,7 @@ from state import GamePhase, GameState
 from utils import set_up_data_layer
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 @cl.data_layer
@@ -354,104 +363,145 @@ def _build_guardrail_context(game_state: GameState) -> str:
 @cl.on_message
 async def handle_message_from_user(message: cl.Message):
     logger = logging.getLogger("handle_message_from_user")
-    manager: BackgroundPaneUpdateManager | None = cl.user_session.get(
-        "pane_update_manager"
-    )
-    if manager is None:
-        manager = BackgroundPaneUpdateManager()
-        cl.user_session.set("pane_update_manager", manager)
-    # Advance generation for this new user message (cancels per-pane when rescheduling)
-    gen = manager.advance_generation()
-
-    agent_from_session = cl.user_session.get("agent")
-    if agent_from_session is None or not isinstance(agent_from_session, FunctionAgent):
-        await cl.Message(
-            content="Agent not found. Please restart the chat session."
-        ).send()
-        return
-    agent: FunctionAgent = agent_from_session
-
-    agent_ctx_from_session = cl.user_session.get("agent_ctx")
-    if agent_ctx_from_session is None or not isinstance(
-        agent_ctx_from_session, Context
-    ):
-        await cl.Message(
-            content="Agent context not found. Please restart the chat session."
-        ).send()
-        return
-    agent_ctx: Context = agent_ctx_from_session
-
-    agent_memory_from_session = cl.user_session.get("agent_memory")
-    if agent_memory_from_session is None or not isinstance(
-        agent_memory_from_session, (Memory, Mem0Memory)
-    ):
-        await cl.Message(
-            content="Agent memory not found. Please restart the chat session."
-        ).send()
-        return
-    agent_memory: Memory | Mem0Memory = agent_memory_from_session
-    # Save the user message ID and thread ID to the context state, so that tools can use them.
-    async with agent_ctx.store.edit_state() as ctx_state:
-        # Don't use `message` directly, because it is not serializable (by the default serializer of `DictState`, probably).
-        ctx_state["user_message_id"] = message.id
-        ctx_state["user_message_thread_id"] = message.thread_id
-
-    # Build dynamic guardrail context based on current game state.
-    game_state: GameState = await agent_ctx.store.get("user-visible")
-    guardrail_prefix = _build_guardrail_context(game_state)
-    augmented_message = (
-        f"{guardrail_prefix}\n\n{message.content}"
-        if guardrail_prefix
-        else message.content
-    )
-
-    # Run the agent.
-    handler = agent.run(augmented_message, context=agent_ctx, memory=agent_memory)
-    response_message = cl.Message(content="")
-    _agent_text_buffer: List[str] = []
-    async for event in handler.stream_events():
-        if isinstance(event, AgentStream):
-            await response_message.stream_token(event.delta)
-            _agent_text_buffer.append(event.delta)
-    await response_message.update()
-    # Final assistant reply text (for fallback if memory hasn't captured it yet)
-    agent_text = ("".join(_agent_text_buffer)).strip() or (
-        response_message.content or ""
-    )
-
-    config_from_session = cl.user_session.get("app_config")
-    if config_from_session is None or not isinstance(config_from_session, AppConfig):
-        await cl.Message(
-            content="AppConfig not found. Please restart the chat session."
-        ).send()
-        return
-    config: AppConfig = config_from_session
-    if config.enable_auto_history_update:
-        manager.schedule(
-            "history",
-            gen,
-            lambda: update_history_if_needed(
-                ctx=agent_ctx,
-                memory=agent_memory,
-                last_user_msg=message.content,
-                last_agent_msg=agent_text,
-            ),
-            timeout=60.0,
-            debounce=0.15,
+    with tracer.start_as_current_span("chat.turn") as turn_span:
+        user_input = message.content or ""
+        turn_span.set_attribute(
+            SpanAttributes.OPENINFERENCE_SPAN_KIND,
+            OpenInferenceSpanKindValues.CHAIN.value,
         )
-        logger.info("Scheduled background history update (gen=%s)", gen)
-
-    if config.enable_auto_scene_update:
-        manager.schedule(
-            "scene",
-            gen,
-            lambda: update_scene_if_needed(
-                ctx=agent_ctx,
-                memory=agent_memory,
-                last_user_msg=message.content,
-                last_agent_msg=agent_text,
-            ),
-            timeout=120.0,
-            debounce=0.15,
+        turn_span.set_attribute(SpanAttributes.INPUT_VALUE, user_input)
+        turn_span.set_attribute(
+            SpanAttributes.INPUT_MIME_TYPE,
+            OpenInferenceMimeTypeValues.TEXT.value,
         )
-        logger.info("Scheduled background scene update (gen=%s)", gen)
+        turn_span.set_attribute("chat.turn.message_id", str(message.id))
+        turn_span.set_attribute("chat.turn.thread_id", str(message.thread_id))
+
+        try:
+            manager: BackgroundPaneUpdateManager | None = cl.user_session.get(
+                "pane_update_manager"
+            )
+            if manager is None:
+                manager = BackgroundPaneUpdateManager()
+                cl.user_session.set("pane_update_manager", manager)
+            # Advance generation for this new user message (cancels per-pane when rescheduling)
+            gen = manager.advance_generation()
+            turn_span.set_attribute("chat.turn.generation", gen)
+
+            agent_from_session = cl.user_session.get("agent")
+            if agent_from_session is None or not isinstance(
+                agent_from_session, FunctionAgent
+            ):
+                await cl.Message(
+                    content="Agent not found. Please restart the chat session."
+                ).send()
+                turn_span.set_status(Status(StatusCode.ERROR, "missing agent"))
+                return
+            agent: FunctionAgent = agent_from_session
+
+            agent_ctx_from_session = cl.user_session.get("agent_ctx")
+            if agent_ctx_from_session is None or not isinstance(
+                agent_ctx_from_session, Context
+            ):
+                await cl.Message(
+                    content="Agent context not found. Please restart the chat session."
+                ).send()
+                turn_span.set_status(Status(StatusCode.ERROR, "missing agent context"))
+                return
+            agent_ctx: Context = agent_ctx_from_session
+
+            agent_memory_from_session = cl.user_session.get("agent_memory")
+            if agent_memory_from_session is None or not isinstance(
+                agent_memory_from_session, (Memory, Mem0Memory)
+            ):
+                await cl.Message(
+                    content="Agent memory not found. Please restart the chat session."
+                ).send()
+                turn_span.set_status(Status(StatusCode.ERROR, "missing agent memory"))
+                return
+            agent_memory: Memory | Mem0Memory = agent_memory_from_session
+            # Save the user message ID and thread ID to the context state, so that tools can use them.
+            async with agent_ctx.store.edit_state() as ctx_state:
+                # Don't use `message` directly, because it is not serializable (by the default serializer of `DictState`, probably).
+                ctx_state["user_message_id"] = message.id
+                ctx_state["user_message_thread_id"] = message.thread_id
+
+            # Build dynamic guardrail context based on current game state.
+            game_state: GameState = await agent_ctx.store.get("user-visible")
+            guardrail_prefix = _build_guardrail_context(game_state)
+            augmented_message = (
+                f"{guardrail_prefix}\n\n{message.content}"
+                if guardrail_prefix
+                else message.content
+            )
+
+            # Run the agent.
+            handler = agent.run(
+                augmented_message, context=agent_ctx, memory=agent_memory
+            )
+            response_message = cl.Message(content="")
+            _agent_text_buffer: List[str] = []
+            async for event in handler.stream_events():
+                if isinstance(event, AgentStream):
+                    await response_message.stream_token(event.delta)
+                    _agent_text_buffer.append(event.delta)
+            await response_message.update()
+            # Final assistant reply text (for fallback if memory hasn't captured it yet)
+            agent_text = ("".join(_agent_text_buffer)).strip() or (
+                response_message.content or ""
+            )
+            turn_span.set_attribute(SpanAttributes.OUTPUT_VALUE, agent_text)
+            turn_span.set_attribute(
+                SpanAttributes.OUTPUT_MIME_TYPE,
+                OpenInferenceMimeTypeValues.TEXT.value,
+            )
+
+            config_from_session = cl.user_session.get("app_config")
+            if config_from_session is None or not isinstance(
+                config_from_session, AppConfig
+            ):
+                await cl.Message(
+                    content="AppConfig not found. Please restart the chat session."
+                ).send()
+                turn_span.set_status(Status(StatusCode.ERROR, "missing app config"))
+                return
+            config: AppConfig = config_from_session
+
+            task_context = copy_context()
+            if config.enable_auto_history_update:
+                manager.schedule(
+                    "history",
+                    gen,
+                    lambda: update_history_if_needed(
+                        ctx=agent_ctx,
+                        memory=agent_memory,
+                        last_user_msg=message.content,
+                        last_agent_msg=agent_text,
+                    ),
+                    timeout=60.0,
+                    debounce=0.15,
+                    task_context=task_context,
+                )
+                logger.info("Scheduled background history update (gen=%s)", gen)
+
+            if config.enable_auto_scene_update:
+                manager.schedule(
+                    "scene",
+                    gen,
+                    lambda: update_scene_if_needed(
+                        ctx=agent_ctx,
+                        memory=agent_memory,
+                        last_user_msg=message.content,
+                        last_agent_msg=agent_text,
+                    ),
+                    timeout=120.0,
+                    debounce=0.15,
+                    task_context=task_context,
+                )
+                logger.info("Scheduled background scene update (gen=%s)", gen)
+
+            turn_span.set_status(Status(StatusCode.OK))
+        except Exception as e:
+            turn_span.set_status(Status(StatusCode.ERROR, str(e)))
+            turn_span.record_exception(e)
+            raise
