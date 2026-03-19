@@ -15,5 +15,8 @@
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.patterns": {
         "ignore": ".gitignore, .dockerignore"
+    },
+    "chat.tools.terminal.autoApprove": {
+        "uv": true
     }
 }
