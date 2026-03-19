@@ -45,7 +45,7 @@ class CreateCharacterRequest(BaseModel):
         description="If set to True, characteristics are ignored for random occupation generation.",
     )
 
-    occupation: Literal[*cochar.OCCUPATIONS_LIST] = Field(  # type: ignore[valid-type]
+    occupation: Optional[str] = Field(
         None,
         description="Character's occupation. Must be a valid occupation or random if omitted.",
     )
