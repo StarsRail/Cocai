@@ -9,6 +9,7 @@ from llama_index.core.workflow import Context
 from pydantic import BaseModel, Field
 
 from events import broadcaster
+from game_state_storage import save_game_state
 from state import GamePhase, GameState
 
 
@@ -85,6 +86,10 @@ async def create_character(ctx: Context, *args, **kwargs) -> dict:
             user_visible_state.pc = character
             user_visible_state.phase = GamePhase.ADVENTURE
         character_as_json = user_visible_state.to_dict().get("pc", {})
+
+    # Persist the updated game state
+    await save_game_state(user_visible_state)
+
     try:
         broadcaster.publish({"type": "pc", "pc": character_as_json})
     except Exception as e:
