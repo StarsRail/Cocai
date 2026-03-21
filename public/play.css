@@ -66,6 +66,7 @@ body {
   background: var(--panel-2);
   border-bottom: 1px solid var(--border);
   font-weight: 600;
+  padding: .5rem 1rem;
 }
 .muted {
   color: var(--muted);
@@ -193,7 +194,6 @@ body {
 
 /* Gutters for Split.js */
 .gutter {
-  background: var(--border);
   opacity: 0.9;
   background-clip: padding-box;
 }
