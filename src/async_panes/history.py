@@ -40,9 +40,15 @@ async def update_history_if_needed(
         broadcaster.publish({"type": "history_status", "phase": "evaluating"})
         should = await __should_update_history(transcript)
         if not should:
-            broadcaster.publish({"type": "history_status", "phase": "unchanged"})
+            broadcaster.publish(
+                {"type": "history_status", "phase": "unchanged"},
+                context="update_history_if_needed",
+            )
             return
-        broadcaster.publish({"type": "history_status", "phase": "summarizing"})
+        broadcaster.publish(
+            {"type": "history_status", "phase": "summarizing"},
+            context="update_history_if_needed",
+        )
         if await __should_update_history(transcript):
             read_only_user_visible_state: GameState = await ctx.store.get(
                 "user-visible"
@@ -52,28 +58,32 @@ async def update_history_if_needed(
             async with ctx.store.edit_state() as ctx_state:
                 user_visible_state: GameState = ctx_state.get("user-visible")
                 user_visible_state.history = new_summary
-                try:
-                    broadcaster.publish(
-                        {"type": "history", "history": user_visible_state.history}
-                    )
-                    broadcaster.publish({"type": "history_status", "phase": "updated"})
-                except Exception as e:
-                    logger.error("Failed to publish updated history.", exc_info=e)
+                broadcaster.publish(
+                    {"type": "history", "history": user_visible_state.history},
+                    context="update_history_if_needed",
+                )
+                broadcaster.publish(
+                    {"type": "history_status", "phase": "updated"},
+                    context="update_history_if_needed",
+                )
         else:
-            broadcaster.publish({"type": "history_status", "phase": "unchanged"})
+            broadcaster.publish(
+                {"type": "history_status", "phase": "unchanged"},
+                context="update_history_if_needed",
+            )
     except asyncio.CancelledError:
         logger.info("auto_history_update task was cancelled")
-        try:
-            broadcaster.publish({"type": "history_status", "phase": "cancelled"})
-        except Exception:
-            pass
+        broadcaster.publish(
+            {"type": "history_status", "phase": "cancelled"},
+            context="update_history_if_needed",
+        )
         raise
     except Exception as e:
         logger.error("Auto history update failed.", exc_info=e)
-        try:
-            broadcaster.publish({"type": "history_status", "phase": "error"})
-        except Exception:
-            pass
+        broadcaster.publish(
+            {"type": "history_status", "phase": "error"},
+            context="update_history_if_needed",
+        )
 
 
 def __format_recent(transcript: list[dict[str, str]], k: int) -> str:

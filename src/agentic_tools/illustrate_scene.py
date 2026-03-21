@@ -168,14 +168,12 @@ async def set_illustration_url(
     """
     Set the current scene illustration by providing a URL (e.g. /public/.. or https://..).
     """
-    logger = logging.getLogger("set_illustration_url")
     async with ctx.store.edit_state() as ctx_state:
         user_visible_state: GameState = ctx_state.get("user-visible")
         user_visible_state.illustration_url = url
-    try:
-        broadcaster.publish({"type": "illustration", "url": url})
-    except Exception as e:
-        logger.error("Failed to publish updated illustration.", exc_info=e)
+    broadcaster.publish(
+        {"type": "illustration", "url": url}, context="set_illustration_url"
+    )
     return "Updated the illustration pane."
 
 

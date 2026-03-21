@@ -187,7 +187,6 @@ async def record_a_clue(
     Add or update a clue in the left-pane accordion.
     If clue_id is provided and already exists, it will be replaced.
     """
-    logger = logging.getLogger("record_a_clue")
     read_only_user_visible_state: GameState = await ctx.store.get("user-visible")
     cid = str(clue_id or f"c{len(read_only_user_visible_state.clues) + 1}")
     clue = Clue(id=cid, title=title, content=content, found_at=found_at)
@@ -198,16 +197,14 @@ async def record_a_clue(
     async with ctx.store.edit_state() as ctx_state:
         user_visible_state: GameState = ctx_state.get("user-visible")
         user_visible_state.clues = new_all_clues
-    try:
-        broadcaster.publish(
-            {
-                "type": "clues",
-                "clues": [c.__dict__ for c in new_all_clues],
-                "updated": clue.__dict__,
-            }
-        )
-    except Exception as e:
-        logger.error("Failed to publish updated clues.", exc_info=e)
+    broadcaster.publish(
+        {
+            "type": "clues",
+            "clues": [c.__dict__ for c in new_all_clues],
+            "updated": clue.__dict__,
+        },
+        context="record_a_clue",
+    )
     return f"Recorded clue '{title}'."
 
 
