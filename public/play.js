@@ -412,7 +412,31 @@ function initLayout () {
   })
 }
 
+// ===== Theme synchronisation =====
+// Keep the Bootstrap data-bs-theme and the embedded Chainlit iframe theme in
+// sync with the OS color-scheme preference so everything looks coherent.
+
+function applyTheme (theme) {
+  // Bootstrap 5.3 color-mode: dark/light components
+  document.documentElement.setAttribute('data-bs-theme', theme)
+  // Tell the embedded Chainlit iframe which theme to use via the ?theme= param.
+  // Always base off /chat so the URL is stable even before the first load.
+  const iframe = document.querySelector('#chat iframe')
+  if (iframe) {
+    const url = new URL('/chat', window.location.href)
+    url.searchParams.set('theme', theme)
+    if (iframe.src !== url.href) iframe.src = url.href
+  }
+}
+
+function initTheme () {
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  applyTheme(mq.matches ? 'dark' : 'light')
+  mq.addEventListener('change', e => applyTheme(e.matches ? 'dark' : 'light'))
+}
+
 async function init () {
+  initTheme()
   initLayout()
   renderHistory('(Progress your adventure to see your story summarized here.)') // start empty, will be updated via SSE
   renderClues([]) // start empty, will be updated via SSE
