@@ -229,6 +229,14 @@ function listenEvents () {
   }
 }
 
+let layoutInitialized = false
+
+function ensureLayoutInitialized () {
+  if (layoutInitialized) return
+  initLayout()
+  layoutInitialized = true
+}
+
 function initLayout () {
   const getSizes = (key, fallback) => {
     try {
@@ -413,7 +421,12 @@ function initLayout () {
 }
 
 async function init () {
-  initLayout()
+  if (typeof window.setupPlayAuthGate === 'function') {
+    window.setupPlayAuthGate({ onAuthenticated: ensureLayoutInitialized })
+  } else {
+    // Fallback: if auth module failed to load, initialize normal layout.
+    ensureLayoutInitialized()
+  }
   renderHistory('(Progress your adventure to see your story summarized here.)') // start empty, will be updated via SSE
   renderClues([]) // start empty, will be updated via SSE
   renderIllustration(
