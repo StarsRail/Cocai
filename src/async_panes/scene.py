@@ -15,14 +15,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
-from pathlib import Path
 
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
 
-from agentic_tools.image_generation import generate_image
+from agentic_tools.image_cache import get_cache_instance
 from events import broadcaster
 from state import GameState
 
@@ -70,7 +68,8 @@ async def update_scene_if_needed(
             {"type": "scene_status", "phase": "imaging"},
             context="update_scene_if_needed",
         )
-        url = await __generate_scene_image(desc)
+        cache = await get_cache_instance()
+        url = await cache.generate_and_cache_scene_image(desc, width=900, height=300)
         if not url:
             logger.info("Scene image generation unavailable; skipping UI update.")
             broadcaster.publish(
@@ -138,22 +137,3 @@ async def __describe_visual_scene(transcript: list[dict[str, str]]) -> str:
         raise
     except Exception:
         return ""
-
-
-async def __generate_scene_image(description: str) -> str | None:
-    logger = logging.getLogger("auto_scene_update")
-    try:
-        image_bytes = await generate_image(description, width=900, height=300)
-        if not image_bytes:
-            return None
-        out_dir = Path("public/illustrations")
-        out_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-        fname = f"scene-{ts}.png"
-        (out_dir / fname).write_bytes(image_bytes)
-        return f"/public/illustrations/{fname}"
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        logger.warning("Illustration service unavailable; skipping image.", exc_info=e)
-        return None

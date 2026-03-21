@@ -8,6 +8,7 @@ Both illustrate_a_scene and auto_scene_update use these functions.
 import base64
 import logging
 import os
+from pathlib import Path
 
 import httpx
 from tenacity import (
@@ -154,3 +155,120 @@ async def generate_image(
     except Exception as e:
         logger.warning("Image generation service unavailable.", exc_info=e)
         return None
+
+
+async def generate_image_with_cache(
+    scene_description: str,
+    width: int = 768,
+    height: int = 512,
+    qdrant_host: str = "localhost",
+    qdrant_port: int = 6333,
+) -> bytes | None:
+    """
+    Generate an image with vector-based caching.
+
+    Flow:
+    1. Query cache for semantically similar cached images
+    2. If found (similarity >= threshold), return cached image bytes
+    3. If not found, generate new image via generate_image()
+    4. Store generated image in cache for future lookups
+    5. Return image bytes
+
+    Args:
+        scene_description: Description of the scene to illustrate
+        width: Image width (used only if generating new image)
+        height: Image height (used only if generating new image)
+        qdrant_host: Qdrant server hostname
+        qdrant_port: Qdrant server port
+
+    Returns:
+        Image bytes if successful, None if generation/caching fails
+    """
+    logger = logging.getLogger("generate_image_with_cache")
+
+    try:
+        # Import here to avoid circular imports
+        from .image_cache import get_cache_instance
+
+        cache = await get_cache_instance(
+            qdrant_host=qdrant_host, qdrant_port=qdrant_port
+        )
+
+        # Step 1: Check cache for similar images
+        cached_image_path = await cache.query_similar_cached_image(scene_description)
+        if cached_image_path:
+            try:
+                # Try to read cached image from disk
+                image_bytes = Path(cached_image_path).read_bytes()
+                logger.info(f"Returning cached image: {cached_image_path}")
+                return image_bytes
+            except FileNotFoundError:
+                logger.warning(f"Cached image file not found: {cached_image_path}")
+                # Fall through to generate new image
+            except Exception as e:
+                logger.warning(
+                    f"Error reading cached image: {cached_image_path}", exc_info=e
+                )
+                # Fall through to generate new image
+
+        # Step 2: Generate new image
+        logger.info("Cache miss or read error; generating new image.")
+        maybe_image_bytes = await generate_image(
+            scene_description, width=width, height=height
+        )
+        if not maybe_image_bytes:
+            logger.warning("Failed to generate image.")
+            return None
+
+        # Step 3: Save to disk (caller's responsibility in most cases,
+        # but we store path in cache; for caching, we assume caller saves it first)
+        # Store in cache with a placeholder path that will be updated if caller saves
+        await cache.store_generated_image(
+            scene_description,
+            maybe_image_bytes,
+            "[in-memory-only]",
+        )
+
+        return maybe_image_bytes
+    except Exception as e:
+        logger.warning("Error in generate_image_with_cache", exc_info=e)
+        # Fall back to non-cached generation
+        return await generate_image(scene_description, width=width, height=height)
+
+
+async def store_image_in_cache(
+    scene_description: str,
+    image_path: str,
+    qdrant_host: str = "localhost",
+    qdrant_port: int = 6333,
+) -> bool:
+    """
+    Store a generated image in the cache after it's been saved to disk.
+
+    This is a companion function to generate_image_with_cache for cases where
+    the caller explicitly saves the image and wants to index it.
+
+    Args:
+        scene_description: Description of the scene
+        image_path: Path where the image was saved
+        qdrant_host: Qdrant server hostname
+        qdrant_port: Qdrant server port
+
+    Returns:
+        True if successfully stored, False otherwise
+    """
+    try:
+        from .image_cache import get_cache_instance
+
+        cache = await get_cache_instance(
+            qdrant_host=qdrant_host, qdrant_port=qdrant_port
+        )
+        return await cache.store_generated_image(
+            scene_description,
+            b"",
+            image_path,  # Pass empty bytes, only path matters
+        )
+    except Exception as e:
+        logger = logging.getLogger("store_image_in_cache")
+        logger.warning("Error storing image in cache", exc_info=e)
+        return False

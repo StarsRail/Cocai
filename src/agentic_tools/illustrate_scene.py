@@ -9,7 +9,7 @@ from pydantic import Field
 from events import broadcaster
 from state import GameState
 
-from .image_generation import generate_image
+from .image_generation import generate_image_with_cache
 
 
 async def illustrate_a_scene(
@@ -20,11 +20,14 @@ async def illustrate_a_scene(
     The player may prefer seeing a visual representation of the scene,
     so it may be a good idea to use this tool when you progress the story.
 
-    Uses OpenRouter if OPENROUTER_API_KEY is available, otherwise falls back to Stable Diffusion.
+    Uses cached images when available (semantic similarity search via Qdrant).
+    Falls back to OpenRouter if API key available, then Stable Diffusion.
     """
     logger = logging.getLogger("illustrate_a_scene")
 
-    image_bytes = await generate_image(scene_description, width=768, height=512)
+    image_bytes = await generate_image_with_cache(
+        scene_description, width=768, height=512
+    )
     if not image_bytes:
         logger.warning("Image generation unavailable; skipping.")
         return "The illustrator is currently unavailable. Proceeding without an image."
