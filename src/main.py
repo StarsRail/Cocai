@@ -28,7 +28,11 @@ from async_panes.pane_update_manager import BackgroundPaneUpdateManager
 from async_panes.scene import update_scene_if_needed
 from config import AppConfig
 from state import GamePhase, GameState
-from utils import set_up_data_layer
+from utils import (
+    build_llama_index_llm,
+    get_llm_provider_display_name,
+    set_up_data_layer,
+)
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -75,58 +79,21 @@ def create_callback_manager() -> CallbackManager:
     return CallbackManager(cast(List[BaseCallbackHandler], callback_handlers))
 
 
-def set_up_llama_index(app_config: AppConfig):
+def set_up_llama_index(app_config: AppConfig) -> str:
     """
     One-time setup code for shared objects across all AgentRunners.
+
+    Returns the system prompt string configured for the agent.
     """
     logger = logging.getLogger("set_up_llama_index")
     # ============= Beginning of the code block for wiring on to models. =============
     # At least when Chainlit is involved, LLM initializations must happen upon the `@cl.on_chat_start` event,
     # not in the global scope.
     # Otherwise, it messes up with Arize Phoenix: LLM calls won't be captured as parts of an Agent Step.
-    if app_config.openai_api_key:
-        logger.info("Using OpenAI API.")
-        from llama_index.llms.openai import OpenAI
 
-        Settings.llm = OpenAI(
-            model="gpt-4o-mini",
-            api_key=app_config.openai_api_key,
-            is_function_calling_model=True,
-            is_chat_model=True,
-        )
-    elif app_config.openrouter_api_key:
-        logger.info("Using OpenRouter API.")
-        from llama_index.llms.openai_like import OpenAILike
-
-        Settings.llm = OpenAILike(
-            model=app_config.openrouter_llm_id or "openrouter/free",
-            api_base="https://openrouter.ai/api/v1",
-            api_key=app_config.openrouter_api_key,
-            is_function_calling_model=True,
-            is_chat_model=True,
-        )
-    elif app_config.together_api_key:
-        logger.info("Using Together AI API.")
-        from llama_index.llms.openai_like import OpenAILike
-
-        Settings.llm = OpenAILike(
-            model="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
-            api_base="https://api.together.xyz/v1",
-            api_key=app_config.together_api_key,
-            is_function_calling_model=True,
-            is_chat_model=True,
-        )
-    else:
-        logger.info("Using Ollama's OpenAI-compatible API.")
-        from llama_index.llms.openai_like import OpenAILike
-
-        Settings.llm = OpenAILike(
-            model=app_config.ollama_llm_id,
-            api_base=app_config.ollama_base_url + "/v1",
-            api_key="ollama",
-            is_function_calling_model=True,
-            is_chat_model=True,
-        )
+    Settings.llm = build_llama_index_llm(app_config)
+    provider_name = get_llm_provider_display_name(app_config)
+    logger.info(f"Using {provider_name}.")
 
     Settings.embed_model = OllamaEmbedding(
         model_name=app_config.ollama_embed_model_id,
@@ -166,7 +133,9 @@ def set_up_llama_index(app_config: AppConfig):
 
 
 @cl.set_starters
-async def set_starters(user=None, default_path: str | None = None):
+async def set_starters(
+    user: cl.User | None = None, default_path: str | None = None
+) -> list[cl.Starter]:
     return [
         cl.Starter(
             label="Roll a 7-faced dice. Outcome?",
@@ -192,7 +161,7 @@ async def set_starters(user=None, default_path: str | None = None):
 
 
 @cl.on_chat_start
-async def factory():
+async def factory() -> None:
     # Build LLMs/tools and prompts per session to avoid global background resources
     app_config = AppConfig.from_env()
     my_system_prompt = set_up_llama_index(app_config)
@@ -253,15 +222,17 @@ def __prepare_memory(key, app_config: AppConfig) -> Memory | Mem0Memory:
         logger.info(
             "Using local Mem0, because the env. var. `MEM0_API_KEY` wasn't found."
         )
+        from utils import build_mem0_llm_config
+
         mem0_config = {
             "version": "v1.1",
             "vector_store": {
                 "provider": "qdrant",
                 "config": {
-                    "collection_name": "cocai",
-                    "embedding_model_dims": 768,  # Change this according to your local model's dimensions
-                    "host": "localhost",
-                    "port": 6333,
+                    "collection_name": app_config.qdrant_collection,
+                    "embedding_model_dims": 768,
+                    "host": app_config.qdrant_host,
+                    "port": app_config.qdrant_port,
                 },
             },
             "embedder": {
@@ -269,43 +240,11 @@ def __prepare_memory(key, app_config: AppConfig) -> Memory | Mem0Memory:
                 "config": {
                     "model": app_config.ollama_embed_model_id,
                     "ollama_base_url": app_config.ollama_base_url,
-                    "embedding_dims": 768,  # Change this according to your local model's dimensions
+                    "embedding_dims": 768,
                 },
             },
+            "llm": build_mem0_llm_config(app_config),
         }
-        if app_config.openai_api_key:
-            logger.info("Using OpenAI API for Mem0's LLM calls.")
-            mem0_config["llm"] = {
-                "provider": "openai",
-                "config": {
-                    "model": "gpt-4o-mini",
-                    "temperature": 0,
-                    "max_tokens": 8000,
-                },
-            }
-        elif app_config.openrouter_api_key:
-            logger.info("Using OpenRouter API for Mem0's LLM calls.")
-            mem0_config["llm"] = {
-                "provider": "openai",
-                "config": {
-                    "model": app_config.openrouter_llm_id or "openrouter/free",
-                    "temperature": 0,
-                    "max_tokens": 8000,
-                    "api_key": app_config.openrouter_api_key,
-                    "base_url": "https://openrouter.ai/api/v1",
-                },
-            }
-        else:
-            logger.info("Using Ollama's OpenAI-compatible API for Mem0's LLM calls.")
-            mem0_config["llm"] = {
-                "provider": "ollama",
-                "config": {
-                    "model": app_config.ollama_llm_id,
-                    "temperature": 0,
-                    "max_tokens": 8000,
-                    "ollama_base_url": app_config.ollama_base_url,
-                },
-            }
         try:
             memory = Mem0Memory.from_config(
                 config=mem0_config,
@@ -388,38 +327,40 @@ async def handle_message_from_user(message: cl.Message):
             gen = manager.advance_generation()
             turn_span.set_attribute("chat.turn.generation", gen)
 
-            agent_from_session = cl.user_session.get("agent")
-            if agent_from_session is None or not isinstance(
-                agent_from_session, FunctionAgent
-            ):
+            agent: FunctionAgent = cl.user_session.get("agent")
+            if agent is None or not isinstance(agent, FunctionAgent):
                 await cl.Message(
                     content="Agent not found. Please restart the chat session."
                 ).send()
                 turn_span.set_status(Status(StatusCode.ERROR, "missing agent"))
                 return
-            agent: FunctionAgent = agent_from_session
 
-            agent_ctx_from_session = cl.user_session.get("agent_ctx")
-            if agent_ctx_from_session is None or not isinstance(
-                agent_ctx_from_session, Context
-            ):
+            agent_ctx: Context = cl.user_session.get("agent_ctx")
+            if agent_ctx is None or not isinstance(agent_ctx, Context):
                 await cl.Message(
                     content="Agent context not found. Please restart the chat session."
                 ).send()
                 turn_span.set_status(Status(StatusCode.ERROR, "missing agent context"))
                 return
-            agent_ctx: Context = agent_ctx_from_session
 
-            agent_memory_from_session = cl.user_session.get("agent_memory")
-            if agent_memory_from_session is None or not isinstance(
-                agent_memory_from_session, (Memory, Mem0Memory)
+            agent_memory: Memory | Mem0Memory = cl.user_session.get("agent_memory")
+            if agent_memory is None or not isinstance(
+                agent_memory, (Memory, Mem0Memory)
             ):
                 await cl.Message(
                     content="Agent memory not found. Please restart the chat session."
                 ).send()
                 turn_span.set_status(Status(StatusCode.ERROR, "missing agent memory"))
                 return
-            agent_memory: Memory | Mem0Memory = agent_memory_from_session
+
+            config: AppConfig = cl.user_session.get("app_config")
+            if config is None or not isinstance(config, AppConfig):
+                await cl.Message(
+                    content="AppConfig not found. Please restart the chat session."
+                ).send()
+                turn_span.set_status(Status(StatusCode.ERROR, "missing app config"))
+                return
+
             # Save the user message ID and thread ID to the context state, so that tools can use them.
             async with agent_ctx.store.edit_state() as ctx_state:
                 # Don't use `message` directly, because it is not serializable (by the default serializer of `DictState`, probably).
@@ -455,17 +396,6 @@ async def handle_message_from_user(message: cl.Message):
                 SpanAttributes.OUTPUT_MIME_TYPE,
                 OpenInferenceMimeTypeValues.TEXT.value,
             )
-
-            config_from_session = cl.user_session.get("app_config")
-            if config_from_session is None or not isinstance(
-                config_from_session, AppConfig
-            ):
-                await cl.Message(
-                    content="AppConfig not found. Please restart the chat session."
-                ).send()
-                turn_span.set_status(Status(StatusCode.ERROR, "missing app config"))
-                return
-            config: AppConfig = config_from_session
 
             task_context = copy_context()
             if config.enable_auto_history_update:

@@ -22,6 +22,148 @@ TRUTHY_STRINGS = {"1", "true", "yes", "y", "on", "t"}
 FALSY_STRINGS = {"0", "false", "no", "n", "off", "f"}
 
 
+# ---- LLM provider selection to eliminate duplication -----
+
+
+def get_llm_provider(app_config) -> str:
+    """
+    Determine which LLM provider to use based on AppConfig.
+
+    Returns one of: "openai", "openrouter", "together", "ollama"
+    following the precedence: OpenAI > OpenRouter > Together > Ollama
+    """
+    from config import AppConfig
+
+    if not isinstance(app_config, AppConfig):
+        raise TypeError(f"Expected AppConfig, got {type(app_config)}")
+
+    if app_config.openai_api_key:
+        return "openai"
+    elif app_config.openrouter_api_key:
+        return "openrouter"
+    elif app_config.together_api_key:
+        return "together"
+    else:
+        return "ollama"
+
+
+def get_llm_provider_display_name(app_config) -> str:
+    """Get a human-readable name for the selected LLM provider."""
+    provider = get_llm_provider(app_config)
+    display_names = {
+        "openai": "OpenAI API",
+        "openrouter": "OpenRouter API",
+        "together": "Together AI API",
+        "ollama": "Ollama's OpenAI-compatible API",
+    }
+    return display_names.get(provider, provider)
+
+
+def build_llama_index_llm(app_config):
+    """
+    Build and return the LLM object for LlamaIndex based on AppConfig.
+
+    Follows the same provider precedence as get_llm_provider().
+    Returns the configured LLM instance ready for LlamaIndex Settings.
+    """
+    from config import AppConfig
+
+    if not isinstance(app_config, AppConfig):
+        raise TypeError(f"Expected AppConfig, got {type(app_config)}")
+
+    provider = get_llm_provider(app_config)
+
+    if provider == "openai":
+        from llama_index.llms.openai import OpenAI
+
+        return OpenAI(
+            model="gpt-4o-mini",
+            api_key=app_config.openai_api_key,
+            is_function_calling_model=True,
+            is_chat_model=True,
+        )
+    elif provider == "openrouter":
+        from llama_index.llms.openai_like import OpenAILike
+
+        return OpenAILike(
+            model=app_config.openrouter_llm_id or "openrouter/free",
+            api_base="https://openrouter.ai/api/v1",
+            api_key=app_config.openrouter_api_key,
+            is_function_calling_model=True,
+            is_chat_model=True,
+        )
+    elif provider == "together":
+        from llama_index.llms.openai_like import OpenAILike
+
+        return OpenAILike(
+            model="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+            api_base="https://api.together.xyz/v1",
+            api_key=app_config.together_api_key,
+            is_function_calling_model=True,
+            is_chat_model=True,
+        )
+    else:  # ollama
+        from llama_index.llms.openai_like import OpenAILike
+
+        return OpenAILike(
+            model=app_config.ollama_llm_id,
+            api_base=app_config.ollama_base_url + "/v1",
+            api_key="ollama",
+            is_function_calling_model=True,
+            is_chat_model=True,
+        )
+
+
+def build_mem0_llm_config(app_config) -> dict:
+    """
+    Build Mem0's LLM config dict based on AppConfig provider precedence.
+
+    Uses the unified get_llm_provider() to ensure consistency with build_llama_index_llm().
+    """
+    from config import AppConfig
+
+    if not isinstance(app_config, AppConfig):
+        raise TypeError(f"Expected AppConfig, got {type(app_config)}")
+
+    provider = get_llm_provider(app_config)
+    base_config = {"temperature": 0, "max_tokens": 8000}
+
+    if provider == "openai":
+        return {
+            "provider": "openai",
+            "config": {"model": "gpt-4o-mini", **base_config},
+        }
+    elif provider == "openrouter":
+        return {
+            "provider": "openai",
+            "config": {
+                "model": app_config.openrouter_llm_id or "openrouter/free",
+                "api_key": app_config.openrouter_api_key,
+                "base_url": "https://openrouter.ai/api/v1",
+                **base_config,
+            },
+        }
+    elif provider == "together":
+        return {
+            "provider": "openai",
+            "config": {
+                "model": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+                "api_base": "https://api.together.xyz/v1",
+                "api_key": app_config.together_api_key,
+                **base_config,
+            },
+        }
+    else:  # ollama
+        return {
+            "provider": "ollama",
+            "config": {
+                "model": app_config.ollama_llm_id,
+                "ollama_base_url": app_config.ollama_base_url,
+                **base_config,
+            },
+        }
+
+
 class MinioStorageClient(BaseStorageClient):
     """
     Copied from https://github.com/rongfengliang/chainlit-pg-learning/blob/9e9da095cc0bd447dfcb59504a835b69cef9cf3f/minio.py#L6.
