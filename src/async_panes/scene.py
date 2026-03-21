@@ -3,8 +3,8 @@ Auto-detect significant scene changes and update the center "scene pane" illustr
 
 This mirrors the non-blocking pattern used by history.py: after each exchange,
 we decide quickly if the scene changed; if yes, we synthesize a concise visual
-description, generate an image via Stable Diffusion WebUI (if available), save
-it under public/illustrations, and publish the new URL to the UI.
+description, generate an image via OpenRouter or Stable Diffusion WebUI (if available),
+save it under public/illustrations, and publish the new URL to the UI.
 
 All potentially blocking LLM calls run in a thread via asyncio.to_thread, and
 network I/O for image generation uses httpx AsyncClient. Cancellation is
@@ -14,17 +14,15 @@ propagated promptly.
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-import httpx
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
 
+from agentic_tools.image_generation import generate_image
 from events import broadcaster
 from state import GameState
 
@@ -144,37 +142,15 @@ async def __describe_visual_scene(transcript: list[dict[str, str]]) -> str:
 
 async def __generate_scene_image(description: str) -> str | None:
     logger = logging.getLogger("auto_scene_update")
-    base_url = os.environ.get("STABLE_DIFFUSION_API_URL", "http://127.0.0.1:7860")
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                f"{base_url.rstrip('/')}/sdapi/v1/txt2img",
-                headers={
-                    "accept": "application/json",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "prompt": description,
-                    "negative_prompt": "",
-                    "sampler": "DPM++ SDE",
-                    "scheduler": "Automatic",
-                    "steps": 6,
-                    "cfg_scale": 2,
-                    "width": 900,
-                    "height": 300,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        b64 = (data or {}).get("images", [None])[0]
-        if not b64:
+        image_bytes = await generate_image(description, width=900, height=300)
+        if not image_bytes:
             return None
-        image = base64.b64decode(b64)
         out_dir = Path("public/illustrations")
         out_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         fname = f"scene-{ts}.png"
-        (out_dir / fname).write_bytes(image)
+        (out_dir / fname).write_bytes(image_bytes)
         return f"/public/illustrations/{fname}"
     except asyncio.CancelledError:
         raise
