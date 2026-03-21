@@ -150,6 +150,16 @@ Optionally, if you prefer to use OpenRouter, add `OPENROUTER_API_KEY=...` to `.e
 
 Optionally, if you prefer to use a hosted open LLM, you can try [Together.ai](https://www.together.ai/). Add `TOGETHER_AI_API_KEY=...` to `.env`.
 
+To enable Chainlit login authentication, also add:
+
+```toml
+CHAINLIT_AUTH_SECRET="<generated-by-chainlit-create-secret>"
+CHAINLIT_AUTH_USERNAME="admin"
+CHAINLIT_AUTH_PASSWORD="change-me"
+```
+
+When these are configured, both `/chat` and the embedded chat in `/play` require login.
+
 ### Running the Chatbot
 
 There are 2 ways to start the chatbot, the easy way and the hard way.

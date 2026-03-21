@@ -1,0 +1,44 @@
+/* Auth gate mode: show only the chat iframe full-screen (used for login screen). */
+body.auth-required .app-root {
+  padding: 0;
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+body.auth-required #col-left,
+body.auth-required #col-right,
+body.auth-required #illustration {
+  display: none !important;
+}
+
+body.auth-required #col-center,
+body.auth-required #center-split,
+body.auth-required #chat {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  min-width: 0 !important;
+  height: 100vh !important;
+  min-height: 100vh !important;
+}
+
+body.auth-required #col-center {
+  display: block !important;
+  flex: 1 1 100% !important;
+  flex-basis: 100% !important;
+}
+
+body.auth-required #chat {
+  border: 0;
+  border-radius: 0;
+}
+
+body.auth-required #chat iframe {
+  width: 100vw;
+  height: 100vh;
+}
+
+/* Prevent Split.js divider artifacts while login is shown full-screen. */
+body.auth-required .gutter {
+  display: none !important;
+}

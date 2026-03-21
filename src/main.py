@@ -1,5 +1,7 @@
 #!/usr/bin/env python
+import hmac
 import logging
+import os
 from contextvars import copy_context
 from pathlib import Path
 from typing import List
@@ -42,6 +44,34 @@ tracer = trace.get_tracer(__name__)
 @cl.data_layer
 def get_data_layer():
     return set_up_data_layer()
+
+
+@cl.password_auth_callback
+def auth_callback(username: str, password: str) -> cl.User | None:
+    """Authenticate users for Chainlit using env-configured credentials.
+
+    Required env vars:
+    - CHAINLIT_AUTH_USERNAME
+    - CHAINLIT_AUTH_PASSWORD
+    """
+    expected_username = os.getenv("CHAINLIT_AUTH_USERNAME", "")
+    expected_password = os.getenv("CHAINLIT_AUTH_PASSWORD", "")
+
+    if not expected_username or not expected_password:
+        logger.warning(
+            "Auth callback enabled but CHAINLIT_AUTH_USERNAME/CHAINLIT_AUTH_PASSWORD are not configured. Denying login."
+        )
+        return None
+
+    valid_user = hmac.compare_digest(username, expected_username)
+    valid_pass = hmac.compare_digest(password, expected_password)
+    if not (valid_user and valid_pass):
+        return None
+
+    return cl.User(
+        identifier=username,
+        metadata={"auth_provider": "password", "role": "player"},
+    )
 
 
 try:

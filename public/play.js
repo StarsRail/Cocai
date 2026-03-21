@@ -229,6 +229,14 @@ function listenEvents () {
   }
 }
 
+let layoutInitialized = false
+
+function ensureLayoutInitialized () {
+  if (layoutInitialized) return
+  initLayout()
+  layoutInitialized = true
+}
+
 function initLayout () {
   const getSizes = (key, fallback) => {
     try {
@@ -333,7 +341,9 @@ function initLayout () {
         const sum = newSizes.reduce((a, b) => a + b, 0)
         if (sum !== 100) {
           const factor = 100 / sum
-          for (let k = 0; k < newSizes.length; k++) { newSizes[k] = newSizes[k] * factor }
+          for (let k = 0; k < newSizes.length; k++) {
+            newSizes[k] = newSizes[k] * factor
+          }
         }
         split.setSizes(newSizes)
         try {
@@ -432,12 +442,19 @@ function applyTheme (theme) {
 function initTheme () {
   const mq = window.matchMedia('(prefers-color-scheme: dark)')
   applyTheme(mq.matches ? 'dark' : 'light')
-  mq.addEventListener('change', e => applyTheme(e.matches ? 'dark' : 'light'))
+  mq.addEventListener('change', (e) =>
+    applyTheme(e.matches ? 'dark' : 'light')
+  )
 }
 
 async function init () {
+  if (typeof window.setupPlayAuthGate === 'function') {
+    window.setupPlayAuthGate({ onAuthenticated: ensureLayoutInitialized })
+  } else {
+    // Fallback: if auth module failed to load, initialize normal layout.
+    ensureLayoutInitialized()
+  }
   initTheme()
-  initLayout()
   renderHistory('(Progress your adventure to see your story summarized here.)') // start empty, will be updated via SSE
   renderClues([]) // start empty, will be updated via SSE
   renderIllustration(

@@ -96,7 +96,7 @@ name = "Cocai"
 
 # layout = "wide"
 
-# default_sidebar_state = "open"
+default_sidebar_state = "open"
 
 # Description of the assistant. This is used for HTML tags.
 description = "A chatbot that plays Call of Cthulhu (CoC) with you, powered by AI."
@@ -113,7 +113,7 @@ custom_css = "/public/custom_chainlit.css"
 
 # Specify a JavaScript file that can be used to customize the user interface.
 # The JavaScript file can be served from the public directory.
-# custom_js = "/public/test.js"
+custom_js = "/public/chainlit-auth-bridge.js"
 
 # The style of alert boxes. Can be "classic" or "modern".
 alert_style = "classic"
