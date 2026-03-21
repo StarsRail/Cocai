@@ -20,6 +20,7 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import Field
 
 from events import broadcaster
+from game_state_storage import save_game_state
 from state import Clue, GameState
 
 
@@ -197,6 +198,10 @@ async def record_a_clue(
     async with ctx.store.edit_state() as ctx_state:
         user_visible_state: GameState = ctx_state.get("user-visible")
         user_visible_state.clues = new_all_clues
+
+    # Persist the updated game state
+    await save_game_state(user_visible_state)
+
     broadcaster.publish(
         {
             "type": "clues",

@@ -12,6 +12,7 @@ from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
 
 from events import broadcaster
+from game_state_storage import save_game_state
 from state import GameState
 
 from .async_panes_utils import build_transcript, format_transcript, llm_complete_text
@@ -66,6 +67,8 @@ async def update_history_if_needed(
                     {"type": "history_status", "phase": "updated"},
                     context="update_history_if_needed",
                 )
+            # Persist the updated game state
+            await save_game_state(user_visible_state)
         else:
             broadcaster.publish(
                 {"type": "history_status", "phase": "unchanged"},

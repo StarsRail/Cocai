@@ -7,6 +7,7 @@ from llama_index.core.workflow import Context
 from pydantic import Field
 
 from events import broadcaster
+from game_state_storage import save_game_state
 from state import GameState
 
 from .image_generation import generate_image_with_cache
@@ -56,6 +57,8 @@ async def set_illustration_url(
     broadcaster.publish(
         {"type": "illustration", "url": url}, context="set_illustration_url"
     )
+    # Persist the updated game state
+    await save_game_state(user_visible_state)
     return "Updated the illustration pane."
 
 

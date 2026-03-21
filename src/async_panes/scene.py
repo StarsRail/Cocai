@@ -22,6 +22,7 @@ from llama_index.memory.mem0 import Mem0Memory
 
 from agentic_tools.image_cache import get_cache_instance
 from events import broadcaster
+from game_state_storage import save_game_state
 from state import GameState
 
 from .async_panes_utils import build_transcript, format_transcript, llm_complete_text
@@ -87,6 +88,8 @@ async def update_scene_if_needed(
             {"type": "scene_status", "phase": "updated"},
             context="update_scene_if_needed",
         )
+        # Persist the updated game state
+        await save_game_state(user_visible_state)
     except asyncio.CancelledError:
         logging.getLogger("auto_scene_update").info("auto_scene_update task cancelled")
         broadcaster.publish(
