@@ -27,6 +27,7 @@ from async_panes.history import update_history_if_needed
 from async_panes.pane_update_manager import BackgroundPaneUpdateManager
 from async_panes.scene import update_scene_if_needed
 from config import AppConfig
+from game_state_storage import load_game_state
 from state import GamePhase, GameState
 from utils import (
     build_llama_index_llm,
@@ -176,7 +177,14 @@ async def factory() -> None:
     )
 
     # User-visible game state includes things like the player character, a brief summary of the story so far, clues & items discovered, etc.
-    user_visible_game_state = GameState()
+    # Try to load persisted game state from storage; if none exists, create a new one
+    user_visible_game_state = await load_game_state()
+    if user_visible_game_state is None:
+        logger.info("No persisted game state found; creating a new session.")
+        user_visible_game_state = GameState()
+    else:
+        logger.info("Loaded persisted game state.")
+
     # Make agent aware of the user-visible game state.
     agent_ctx = Context(agent)
     async with agent_ctx.store.edit_state() as ctx_state:
@@ -202,6 +210,21 @@ async def factory() -> None:
     )
     # Initialize pane update manager for this session
     cl.user_session.set("pane_update_manager", BackgroundPaneUpdateManager())
+
+    # Broadcast the initial game state to the UI so reconnecting clients get the current state
+    from events import broadcaster
+
+    game_state_dict = user_visible_game_state.to_dict()
+    broadcaster.publish(
+        {"type": "history", "history": game_state_dict.get("history", "")}
+    )
+    broadcaster.publish({"type": "clues", "clues": game_state_dict.get("clues", [])})
+    if game_state_dict.get("illustration_url"):
+        broadcaster.publish(
+            {"type": "illustration", "url": game_state_dict.get("illustration_url")}
+        )
+    broadcaster.publish({"type": "pc", "pc": game_state_dict.get("pc", {})})
+
     logger.info("Set up agent, context, and memory for the chat session.")
 
 
@@ -267,6 +290,72 @@ async def cleanup():
             manager.cancel_all()
     except Exception as e:
         logger.warning(f"Cleanup encountered an issue: {e}")
+
+
+@cl.on_chat_resume
+async def on_chat_resume(thread):
+    """Resume a previously persisted conversation.
+
+    Chainlit calls this when a user resumes an existing thread.
+    We restore the agent, game state, and memory.
+    """
+    logger = logging.getLogger("on_chat_resume")
+    logger.info(f"Resuming chat session from thread {thread.get('id')}")
+
+    # Build LLMs/tools and prompts just like in @cl.on_chat_start
+    app_config = AppConfig.from_env()
+    my_system_prompt = set_up_llama_index(app_config)
+
+    # Restore memory
+    key = cl.user_session.get("id")
+    agent_memory = __prepare_memory(key, app_config)
+
+    # Create agent
+    agent = FunctionAgent(
+        system_prompt=my_system_prompt,
+        memory=agent_memory,
+    )
+
+    # Load persisted game state from thread metadata
+    game_state_dict = thread.metadata.get("game_state") if thread.metadata else None
+    if game_state_dict:
+        logger.info("Restoring persisted game state")
+        user_visible_game_state = GameState.from_dict(game_state_dict)
+    else:
+        logger.info("No game state found in thread; creating fresh state")
+        user_visible_game_state = GameState()
+
+    # Restore agent context with game state
+    agent_ctx = Context(agent)
+    async with agent_ctx.store.edit_state() as ctx_state:
+        ctx_state["user-visible"] = user_visible_game_state
+
+    agent.tool_retriever = ToolProvider(agent_ctx)
+
+    # Store in user session
+    cl.user_session.set("agent", agent)
+    cl.user_session.set("agent_ctx", agent_ctx)
+    cl.user_session.set("agent_memory", agent_memory)
+    cl.user_session.set("app_config", app_config)
+
+    # Initialize pane update manager
+    cl.user_session.set("pane_update_manager", BackgroundPaneUpdateManager())
+
+    # Broadcast initial game state to SSE (so UI panes update)
+    from events import broadcaster
+
+    game_state_dict = user_visible_game_state.to_dict()
+    broadcaster.publish(
+        {"type": "history", "history": game_state_dict.get("history", "")}
+    )
+    broadcaster.publish({"type": "clues", "clues": game_state_dict.get("clues", [])})
+    if game_state_dict.get("illustration_url"):
+        broadcaster.publish(
+            {"type": "illustration", "url": game_state_dict.get("illustration_url")}
+        )
+    broadcaster.publish({"type": "pc", "pc": game_state_dict.get("pc", {})})
+
+    logger.info("Chat session resumed successfully")
 
 
 def _build_guardrail_context(game_state: GameState) -> str:
