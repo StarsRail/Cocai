@@ -62,8 +62,46 @@ class GameState:
         skills = data.get("skills", {}) or {}
 
         return {
+            "phase": self.phase.value,
             "history": self.history,
             "clues": [asdict(c) for c in self.clues],
             "illustration_url": self.illustration_url,
             "pc": {"name": full_name, "stats": stats, "skills": skills},
+            "pc_data": data
+            if c
+            else None,  # Store full character data for reconstruction
         }
+
+    @staticmethod
+    def from_dict(data: dict) -> GameState:
+        """
+        Reconstruct a GameState from a persisted dict.
+
+        Note: This loses the full Character object (pc field) since cochar doesn't
+        have a robust from_dict method. The PC data is best reconstructed via the
+        agent's existing character creation tool.
+        """
+        phase_str = data.get("phase", "adventure")
+        try:
+            phase = GamePhase(phase_str)
+        except ValueError:
+            phase = GamePhase.ADVENTURE
+
+        clues = []
+        for c in data.get("clues", []):
+            clues.append(
+                Clue(
+                    id=c.get("id", ""),
+                    title=c.get("title", ""),
+                    content=c.get("content", ""),
+                    found_at=c.get("found_at"),
+                )
+            )
+
+        return GameState(
+            phase=phase,
+            history=data.get("history", ""),
+            clues=clues,
+            illustration_url=data.get("illustration_url"),
+            pc=None,  # PC object will be kept in memory; metadata only stores the JSON representation
+        )
