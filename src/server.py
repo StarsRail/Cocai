@@ -3,9 +3,22 @@ import logging
 import multiprocessing as mp
 import os
 import signal
+import warnings
 from contextlib import asynccontextmanager
 from itertools import chain, repeat
 from typing import Annotated, List
+
+# Suppress deprecation warnings from third-party libraries.
+# These come from openinference, traceloop, and llama-index-utils-workflow which
+# use older Pydantic V1-style APIs and the deprecated asyncio.iscoroutinefunction.
+warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*asyncio.iscoroutinefunction.*")
+try:
+    from pydantic.warnings import PydanticDeprecatedSince20, PydanticDeprecatedSince211
+
+    warnings.filterwarnings("ignore", category=PydanticDeprecatedSince20)
+    warnings.filterwarnings("ignore", category=PydanticDeprecatedSince211)
+except ImportError:
+    pass
 
 from chainlit.utils import mount_chainlit
 from fastapi import FastAPI, Query, Request
