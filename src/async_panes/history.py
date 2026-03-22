@@ -7,11 +7,11 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import chainlit as cl
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
 
-from events import broadcaster
 from game_state.data_models import GameState
 from game_state.load_and_save import save_game_state
 
@@ -38,17 +38,15 @@ async def update_history_if_needed(
         logger.warning("No transcript found for history update.")
         return
     try:
-        broadcaster.publish({"type": "history_status", "phase": "evaluating"})
+        await cl.send_window_message({"type": "history_status", "phase": "evaluating"})
         should = await __should_update_history(transcript)
         if not should:
-            broadcaster.publish(
-                {"type": "history_status", "phase": "unchanged"},
-                context="update_history_if_needed",
+            await cl.send_window_message(
+                {"type": "history_status", "phase": "unchanged"}
             )
             return
-        broadcaster.publish(
-            {"type": "history_status", "phase": "summarizing"},
-            context="update_history_if_needed",
+        await cl.send_window_message(
+            {"type": "history_status", "phase": "summarizing"}
         )
         if await __should_update_history(transcript):
             read_only_user_visible_state: GameState = await ctx.store.get(
@@ -59,34 +57,33 @@ async def update_history_if_needed(
             async with ctx.store.edit_state() as ctx_state:
                 user_visible_state: GameState = ctx_state.get("user-visible")
                 user_visible_state.history = new_summary
-                broadcaster.publish(
-                    {"type": "history", "history": user_visible_state.history},
-                    context="update_history_if_needed",
+                await cl.send_window_message(
+                    {"type": "history", "history": user_visible_state.history}
                 )
-                broadcaster.publish(
-                    {"type": "history_status", "phase": "updated"},
-                    context="update_history_if_needed",
+                await cl.send_window_message(
+                    {"type": "history_status", "phase": "updated"}
                 )
             # Persist the updated game state
             await save_game_state(user_visible_state)
         else:
-            broadcaster.publish(
-                {"type": "history_status", "phase": "unchanged"},
-                context="update_history_if_needed",
+            await cl.send_window_message(
+                {"type": "history_status", "phase": "unchanged"}
             )
     except asyncio.CancelledError:
         logger.info("auto_history_update task was cancelled")
-        broadcaster.publish(
-            {"type": "history_status", "phase": "cancelled"},
-            context="update_history_if_needed",
-        )
+        try:
+            await cl.send_window_message(
+                {"type": "history_status", "phase": "cancelled"}
+            )
+        except Exception:
+            pass
         raise
     except Exception as e:
         logger.error("Auto history update failed.", exc_info=e)
-        broadcaster.publish(
-            {"type": "history_status", "phase": "error"},
-            context="update_history_if_needed",
-        )
+        try:
+            await cl.send_window_message({"type": "history_status", "phase": "error"})
+        except Exception:
+            pass
 
 
 def __format_recent(transcript: list[dict[str, str]], k: int) -> str:

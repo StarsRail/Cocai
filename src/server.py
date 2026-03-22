@@ -8,13 +8,11 @@ from itertools import chain, repeat
 from typing import Annotated, List
 
 from chainlit.utils import mount_chainlit
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Template
-from sse_starlette.sse import EventSourceResponse
 
-from events import broadcaster
 from utils import set_up_logging
 
 set_up_logging()
@@ -23,8 +21,6 @@ set_up_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger = logging.getLogger("lifespan")
-    # Signal to tell long-lived streams (like SSE) to terminate quickly on shutdown
-    app.state.shutdown_event = asyncio.Event()
     # Startup
     try:
         # Install signal handlers so the reloader's SIGTERM/SIGINT cleanly stop this app process
@@ -33,9 +29,6 @@ async def lifespan(app: FastAPI):
         async def _graceful_then_exit():
             try:
                 logger.info("Signal received: initiating graceful shutdown...")
-                if hasattr(app.state, "shutdown_event"):
-                    app.state.shutdown_event.set()
-                await broadcaster.close()
             except Exception as e:
                 logger.error(f"Error during signal shutdown: {e}")
             finally:
@@ -54,15 +47,6 @@ async def lifespan(app: FastAPI):
                 signal.signal(sig, lambda *_: os._exit(0))
         yield
     finally:
-        # Shutdown: close SSE broadcaster so clients disconnect promptly
-        try:
-            logger.info("Signaling shutdown to SSE streams and broadcaster...")
-            # First, signal our shutdown event so generators stop waiting immediately
-            app.state.shutdown_event.set()
-            # Then, close the broadcaster which will publish a shutdown message
-            await broadcaster.close()
-        except Exception as e:
-            logger.error(f"Error during broadcaster shutdown: {e}")
         # Best-effort cleanup for any multiprocessing children that third-party libs may have spawned
         try:
             children = mp.active_children()
@@ -138,59 +122,6 @@ async def play_ui():
     """Serve the new three-column UI."""
     with open("public/play.html", encoding="utf-8") as f:
         return f.read()
-
-
-@app.get("/api/events")
-async def sse_events(request: Request):
-    """Server-Sent Events stream using EventSourceResponse for robust handling.
-    - Detects client disconnects
-    - Responds immediately to app shutdown
-    - Sends heartbeats automatically via `ping`
-    """
-    q = await broadcaster.subscribe()
-
-    async def publisher():
-        try:
-            while True:
-                # End fast on app shutdown
-                se = getattr(request.app.state, "shutdown_event", None)
-                if se is not None and se.is_set():
-                    break
-                # End on client disconnect
-                try:
-                    if await request.is_disconnected():
-                        break
-                except Exception:
-                    pass
-
-                # Wait for next event with small timeout to react to shutdown/disconnect
-                try:
-                    data = await asyncio.wait_for(q.get(), timeout=5.0)
-                except asyncio.TimeoutError:
-                    continue
-
-                if isinstance(data, dict) and data.get("type") == "server_shutdown":
-                    break
-
-                # EventSourceResponse expects str/bytes for 'data' or a dict with 'data'
-                if isinstance(data, (bytes, bytearray)):
-                    yield {"data": data.decode("utf-8", errors="ignore")}
-                else:
-                    from json import dumps
-
-                    yield {"data": dumps(data, ensure_ascii=False)}
-        finally:
-            await broadcaster.unsubscribe(q)
-
-    return EventSourceResponse(
-        publisher(),
-        ping=10000,  # ms
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # disable proxy buffering
-        },
-    )
 
 
 mount_chainlit(app=app, target="src/main.py", path="/chat")

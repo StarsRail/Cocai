@@ -25,7 +25,8 @@ This document describes the session persistence system for CoCai, which automati
                      ▼
          ┌───────────────────────┐
          │ play.html loads       │
-         │ play.js opens SSE     │
+         │ play.js listens for   │
+         │ window messages       │
          └───────────┬───────────┘
                      │
                      ▼
@@ -47,20 +48,20 @@ This document describes the session persistence system for CoCai, which automati
          └──────────┬──────────────────┘
                     │
          ┌──────────▼──────────────────┐
-         │ broadcaster.publish() sends │
-         │ initial state events        │
-         └──────────┬──────────────────┘
+         │ cl.send_window_message() sends │
+         │ initial state events           │
+         └──────────┬─────────────────────┘
                     │
          ┌──────────▼──────────────────┐
-         │ SSE stream delivers events  │
-         │ + Chainlit persisted        │
+         │ Window message delivers     │
+         │ events + Chainlit persisted │
          │   messages to UI            │
          └──────────┬──────────────────┘
                     │
          ┌──────────▼──────────────────┐
          │ UI renders:                 │
          │ - Chat history (Chainlit)   │
-         │ - Game state (SSE)          │
+         │ - Game state (window message) │
          └─────────────────────────────┘
 ```
 
@@ -115,19 +116,19 @@ class GameState:
 1. Load any persisted state via `load_game_state()`
 2. If None, create fresh `GameState()`
 3. Set game state in agent context
-4. **Immediately broadcast** all state events to SSE stream
+4. **Immediately send** all state events to parent window via `cl.send_window_message()`
 5. Store data_layer in user_session for future persistence calls
 
-**Initial Broadcast (lines ~200-205):**
+**Initial Window Messages (lines ~200-205):**
 ```python
 game_state_dict = user_visible_game_state.to_dict()
-broadcaster.publish({"type": "history", "history": ...})
-broadcaster.publish({"type": "clues", "clues": ...})
-broadcaster.publish({"type": "illustration", "url": ...})
-broadcaster.publish({"type": "pc", "pc": ...})
+await cl.send_window_message({"type": "history", "history": ...})
+await cl.send_window_message({"type": "clues", "clues": ...})
+await cl.send_window_message({"type": "illustration", "url": ...})
+await cl.send_window_message({"type": "pc", "pc": ...})
 ```
 
-This ensures SSE clients connecting after session start receive the full current state.
+This ensures the parent window receives the full current state whenever the Chainlit session initializes.
 
 ### 3b. **Conversation Resumption** (`src/main.py` → `@cl.on_chat_resume`)
 
@@ -136,7 +137,7 @@ When a user visits `/play` after a previous session, Chainlit automatically call
 1. Reconstructs the FunctionAgent with the same LLM/memory setup
 2. Loads the persisted `GameState` from thread metadata
 3. Restores the agent context
-4. Broadcasts all state to SSE (so linked panes update)
+4. Sends all state to parent window via `cl.send_window_message()` (so linked panes update)
 5. Chainlit automatically restores all chat messages
 
 **Result:** User refreshes page → sees full conversation history + all game state intact
@@ -168,9 +169,9 @@ thread.metadata["game_state"] = state_dict
     ↓
 SQLite: UPDATE threads SET metadata = ... WHERE id = thread_id
     ↓
-broadcaster.publish({"type": "...", ...})
+await cl.send_window_message({"type": "...", ...})
     ↓
-SSE stream → UI
+window message → UI
 ```
 
 ### Read Path (Restoration):
@@ -187,34 +188,28 @@ GameState.from_dict(state_dict)
     ↓
 agent context receives restored state
     ↓
-broadcaster publishes initial events
+cl.send_window_message() sends initial events
     ↓
-SSE clients receive and render
+parent window receives and renders
 ```
 
 ## UI Integration
 
-### SSE Client (`public/play.js`)
+### Window Message Client (`public/play.js`)
 
-Play.js opens an SSE stream to `/api/events`:
+Play.js listens for window messages from the embedded Chainlit iframe:
 ```javascript
-const es = new EventSource('/api/events')
-es.onmessage = (ev) => {
-    const msg = JSON.parse(ev.data)
-    if (msg.type === 'history') renderHistory(msg.history)
-    if (msg.type === 'clues') renderClues(msg.clues)
-    if (msg.type === 'illustration') renderIllustration(msg.url)
-    if (msg.type === 'pc') renderPC(msg.pc)
-}
+window.addEventListener('message', (event) => {
+    if (event.origin !== window.location.origin) return
+    const data = event.data
+    if (data.type === 'history') renderHistory(data.history)
+    if (data.type === 'clues') renderClues(data.clues)
+    if (data.type === 'illustration') renderIllustration(data.url)
+    if (data.type === 'pc') renderPC(data.pc)
+})
 ```
 
-**On Reconnect:** Play.js closes and reopens the EventSource connection. At that moment:
-1. `/api/events` handler calls `broadcaster.subscribe()`
-2. New queue receives the next messages from broadcaster
-3. If Chainlit has already broadcasted initial state, the event is lost (queues only store pending events)
-4. Solution: Chainlit broadcasts initial state in `@cl.on_chat_start` to ensure new clients receive it
-
-**Key Assumption:** The Chainlit session (`/chat` iframe) starts before the UI fully connects to SSE, so the initial broadcast has time to propagate.
+**On Reconnect:** When the Chainlit iframe reloads, `@cl.on_chat_start` or `@cl.on_chat_resume` fires and immediately calls `cl.send_window_message()` to resend all current game state to the parent window, ensuring panes are always up-to-date.
 
 ## State Persistence Strategy
 
@@ -249,7 +244,7 @@ To persist a new property (e.g., `player_notes: str`):
 2. Update `to_dict()` to include the field
 3. Update `from_dict()` to deserialize it
 4. Call `save_game_state()` after mutations
-5. Add SSE broadcast in `@cl.on_chat_start` if needed for UI
+5. Add `await cl.send_window_message()` call in `@cl.on_chat_start` if needed for UI
 
 ### Using Different Storage Backend
 
@@ -296,9 +291,9 @@ To verify session persistence works:
 ## Performance Implications
 
 ### Latency
-- Per-save overhead: ~5–50ms (SQLite write + broadcaster publish)
+- Per-save overhead: ~5–50ms (SQLite write + window message send)
 - Impact: Minimal, async and non-blocking
-- Broadcaster publish: ~1ms (in-memory queue)
+- Window message send: ~1ms (WebSocket to browser)
 
 ### Storage
 - Per-GameState: ~500B–5KB depending on clue count and illustration URL length
@@ -307,7 +302,7 @@ To verify session persistence works:
 
 ### Concurrency
 - Each session has its own thread → no lock contention
-- Broadcaster uses asyncio.Lock for thread safety
+- Window messages are per-session WebSocket → no broadcast contention
 - SQLite single-writer model handles updates sequentially
 
 ## Debugging & Logging
@@ -323,8 +318,8 @@ To verify session persistence works:
 "Failed to persist game state: {error}"
 "No thread_id available; cannot persist game state"
 
-# SSE events
-"Received SSE: {event_type}"
+# Window messages (from Chainlit to parent window)
+"Sent window message: {event_type}"
 ```
 
 **Inspect Persisted State:**

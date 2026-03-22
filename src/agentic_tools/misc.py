@@ -6,6 +6,7 @@ from functools import partial
 from pathlib import Path
 from typing import Optional
 
+import chainlit as cl
 import qdrant_client
 from llama_index.core import (
     Settings,
@@ -19,7 +20,6 @@ from llama_index.core.workflow import Context
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import Field
 
-from events import broadcaster
 from game_state.data_models import Clue, GameState
 from game_state.load_and_save import save_game_state
 
@@ -202,13 +202,12 @@ async def record_a_clue(
     # Persist the updated game state
     await save_game_state(user_visible_state)
 
-    broadcaster.publish(
+    await cl.send_window_message(
         {
             "type": "clues",
             "clues": [c.__dict__ for c in new_all_clues],
             "updated": clue.__dict__,
-        },
-        context="record_a_clue",
+        }
     )
     return f"Recorded clue '{title}'."
 

@@ -241,19 +241,19 @@ async def factory() -> None:
     # Initialize pane update manager for this session
     cl.user_session.set("pane_update_manager", BackgroundPaneUpdateManager())
 
-    # Broadcast the initial game state to the UI so reconnecting clients get the current state
-    from events import broadcaster
-
+    # Send the initial game state to the parent window via Chainlit window messaging
     game_state_dict = user_visible_game_state.to_dict()
-    broadcaster.publish(
+    await cl.send_window_message(
         {"type": "history", "history": game_state_dict.get("history", "")}
     )
-    broadcaster.publish({"type": "clues", "clues": game_state_dict.get("clues", [])})
+    await cl.send_window_message(
+        {"type": "clues", "clues": game_state_dict.get("clues", [])}
+    )
     if game_state_dict.get("illustration_url"):
-        broadcaster.publish(
+        await cl.send_window_message(
             {"type": "illustration", "url": game_state_dict.get("illustration_url")}
         )
-    broadcaster.publish({"type": "pc", "pc": game_state_dict.get("pc", {})})
+    await cl.send_window_message({"type": "pc", "pc": game_state_dict.get("pc", {})})
 
     logger.info("Set up agent, context, and memory for the chat session.")
 
@@ -371,19 +371,19 @@ async def on_chat_resume(thread):
     # Initialize pane update manager
     cl.user_session.set("pane_update_manager", BackgroundPaneUpdateManager())
 
-    # Broadcast initial game state to SSE (so UI panes update)
-    from events import broadcaster
-
+    # Send initial game state to the parent window via Chainlit window messaging
     game_state_dict = user_visible_game_state.to_dict()
-    broadcaster.publish(
+    await cl.send_window_message(
         {"type": "history", "history": game_state_dict.get("history", "")}
     )
-    broadcaster.publish({"type": "clues", "clues": game_state_dict.get("clues", [])})
+    await cl.send_window_message(
+        {"type": "clues", "clues": game_state_dict.get("clues", [])}
+    )
     if game_state_dict.get("illustration_url"):
-        broadcaster.publish(
+        await cl.send_window_message(
             {"type": "illustration", "url": game_state_dict.get("illustration_url")}
         )
-    broadcaster.publish({"type": "pc", "pc": game_state_dict.get("pc", {})})
+    await cl.send_window_message({"type": "pc", "pc": game_state_dict.get("pc", {})})
 
     logger.info("Chat session resumed successfully")
 

@@ -16,12 +16,12 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import chainlit as cl
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
 
 from agentic_tools.image_cache import get_cache_instance
-from events import broadcaster
 from game_state.data_models import GameState
 from game_state.load_and_save import save_game_state
 
@@ -42,68 +42,62 @@ async def update_scene_if_needed(
         logger.debug("No transcript found for scene update.")
         return
     try:
-        broadcaster.publish(
-            {"type": "scene_status", "phase": "evaluating"},
-            context="update_scene_if_needed",
+        await cl.send_window_message(
+            {"type": "scene_status", "phase": "evaluating"}
         )
         should = await __should_update_scene(transcript)
         if not should:
-            broadcaster.publish(
-                {"type": "scene_status", "phase": "unchanged"},
-                context="update_scene_if_needed",
+            await cl.send_window_message(
+                {"type": "scene_status", "phase": "unchanged"}
             )
             return
-        broadcaster.publish(
-            {"type": "scene_status", "phase": "describing"},
-            context="update_scene_if_needed",
+        await cl.send_window_message(
+            {"type": "scene_status", "phase": "describing"}
         )
         desc = await __describe_visual_scene(transcript)
         if not desc.strip():
             logger.debug("Scene change detected but no description produced; skipping.")
-            broadcaster.publish(
-                {"type": "scene_status", "phase": "unchanged"},
-                context="update_scene_if_needed",
+            await cl.send_window_message(
+                {"type": "scene_status", "phase": "unchanged"}
             )
             return
-        broadcaster.publish(
-            {"type": "scene_status", "phase": "imaging"},
-            context="update_scene_if_needed",
+        await cl.send_window_message(
+            {"type": "scene_status", "phase": "imaging"}
         )
         cache = await get_cache_instance()
         url = await cache.generate_and_cache_scene_image(desc, width=900, height=300)
         if not url:
             logger.info("Scene image generation unavailable; skipping UI update.")
-            broadcaster.publish(
-                {"type": "scene_status", "phase": "imaging_failed"},
-                context="update_scene_if_needed",
+            await cl.send_window_message(
+                {"type": "scene_status", "phase": "imaging_failed"}
             )
             return
         async with ctx.store.edit_state() as ctx_state:
             user_visible_state: GameState = ctx_state.get("user-visible")
             user_visible_state.illustration_url = url
-        broadcaster.publish(
-            {"type": "illustration", "url": url}, context="update_scene_if_needed"
-        )
-        broadcaster.publish(
-            {"type": "scene_status", "phase": "updated"},
-            context="update_scene_if_needed",
-        )
+        await cl.send_window_message({"type": "illustration", "url": url})
+        await cl.send_window_message({"type": "scene_status", "phase": "updated"})
         # Persist the updated game state
         await save_game_state(user_visible_state)
     except asyncio.CancelledError:
         logging.getLogger("auto_scene_update").info("auto_scene_update task cancelled")
-        broadcaster.publish(
-            {"type": "scene_status", "phase": "cancelled"},
-            context="update_scene_if_needed",
-        )
+        try:
+            await cl.send_window_message(
+                {"type": "scene_status", "phase": "cancelled"}
+            )
+        except Exception:
+            pass
         raise
     except Exception as e:
         logging.getLogger("auto_scene_update").error(
             "Auto scene update failed.", exc_info=e
         )
-        broadcaster.publish(
-            {"type": "scene_status", "phase": "error"}, context="update_scene_if_needed"
-        )
+        try:
+            await cl.send_window_message(
+                {"type": "scene_status", "phase": "error"}
+            )
+        except Exception:
+            pass
 
 
 async def __should_update_scene(transcript: list[dict[str, str]]) -> bool:

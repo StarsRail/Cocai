@@ -50,7 +50,7 @@ Keep pane update coroutines idempotent and resilient to cancellation
 final UI/state mutation until the end of the coroutine so cancellation
 prevents partial commits.
 
-## Status Phases (SSE)
+## Status Phases (Window Messages)
 
 History (`type=history_status`): `evaluating`, `summarizing`, `updated`,
 `unchanged`, `cancelled`, `error`.
