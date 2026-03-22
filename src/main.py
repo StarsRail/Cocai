@@ -3,7 +3,6 @@ import hmac
 import logging
 import os
 from contextvars import copy_context
-from pathlib import Path
 from typing import List
 
 import chainlit as cl
@@ -23,8 +22,8 @@ from openinference.semconv.trace import (
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
-from agentic_tools import AgentContextAwareToolRetriever as ToolProvider
-from agentic_tools.misc import ToolForConsultingTheModule
+from agents.agent_factory import AgentFactory
+from agents.game_fsm import get_game_fsm
 from async_panes.history import update_history_if_needed
 from async_panes.pane_update_manager import BackgroundPaneUpdateManager
 from async_panes.scene import update_scene_if_needed
@@ -110,7 +109,7 @@ def create_callback_manager() -> CallbackManager:
     return CallbackManager(cast(List[BaseCallbackHandler], callback_handlers))
 
 
-def set_up_llama_index(app_config: AppConfig) -> str:
+def set_up_llama_index(app_config: AppConfig) -> None:
     """
     One-time setup code for shared objects across all AgentRunners.
 
@@ -132,35 +131,10 @@ def set_up_llama_index(app_config: AppConfig) -> str:
     )
     # ============= End of the code block for wiring on to models. =============
 
-    # Override the default system prompt for ReAct chats.
-    with open("prompts/system_prompt.md", encoding="utf-8") as f:
-        MY_SYSTEM_PROMPT = f.read()
-    if app_config.should_preread_game_module:
-        logger.info("Pre-reading the game module...")
-        game_module_summary = ToolForConsultingTheModule(
-            path_to_module_folder=Path(app_config.game_module_path),
-            should_reuse_existing_index=app_config.should_reuse_existing_index,
-        ).consult_the_game_module(
-            "Story background, character requirements, and keeper's notes."
-        )
-        logger.info("Finished pre-reading the game module.")
-        my_system_prompt = "\n\n".join(
-            [
-                MY_SYSTEM_PROMPT,
-                "A brief description of the game module you are hosting is as follows:",
-                "--------- BEGINNING OF GAME MODULE DESCRIPTION ---------",
-                game_module_summary,
-                "--------- END OF GAME MODULE DESCRIPTION ---------",
-            ]
-        )
-    else:
-        logger.info("Skipping pre-reading the game module.")
-        my_system_prompt = MY_SYSTEM_PROMPT
     # Needed for "Retrieved the following sources" to show up on Chainlit.
     # This procedure will register Chainlit's callback manager, which will require Chainlit's context variables to
     # be ready before receiving an event, so it should be called AFTER calling the tool.
     Settings.callback_manager = create_callback_manager()
-    return my_system_prompt
 
 
 @cl.set_starters
@@ -195,16 +169,11 @@ async def set_starters(
 async def factory() -> None:
     # Build LLMs/tools and prompts per session to avoid global background resources
     app_config = AppConfig.from_env()
-    my_system_prompt = set_up_llama_index(app_config)
-    # Each chat session should have his own agent runner, because each chat session has different chat histories.
+    set_up_llama_index(app_config)
+
+    # Each chat session should have its own agent runner, because each chat session has different chat histories.
     key = cl.user_session.get("id")
     agent_memory = __prepare_memory(key, app_config)
-    agent = FunctionAgent(
-        system_prompt=my_system_prompt,
-        memory=agent_memory,
-        # We will be initalizing tools later via a custom tool retriever,
-        # so that some of the tools can be made context-aware.
-    )
 
     # User-visible game state includes things like the player character, a brief summary of the story so far, clues & items discovered, etc.
     # Try to load persisted game state from storage; if none exists, create a new one
@@ -216,28 +185,31 @@ async def factory() -> None:
         logger.info("Loaded persisted game state.")
 
     # Make agent aware of the user-visible game state.
-    agent_ctx = Context(agent)
+    agent_ctx = Context(None)  # Context without an agent initially
     async with agent_ctx.store.edit_state() as ctx_state:
         ctx_state["user-visible"] = user_visible_game_state
 
-    agent.tool_retriever = ToolProvider(agent_ctx)
+    # Initialize AgentFactory for phase-specific agents
+    agent_factory = AgentFactory()
 
-    cl.user_session.set(
-        "agent",
-        agent,
-    )
-    cl.user_session.set(
-        "agent_ctx",
-        agent_ctx,
-    )
-    cl.user_session.set(
-        "agent_memory",
-        agent_memory,
-    )
-    cl.user_session.set(
-        "app_config",
-        app_config,
-    )
+    # Create initial agent for the current phase
+    current_phase = user_visible_game_state.phase
+    agent = agent_factory.create_agent_for_phase(current_phase, agent_ctx, agent_memory)
+
+    # Update context to reference the agent (needed for some tool bindings)
+    agent_ctx.agent = agent
+
+    # Initialize FSM (tracks game phase state)
+    game_fsm = get_game_fsm()
+
+    # Store in user session for message handling
+    cl.user_session.set("agent", agent)
+    cl.user_session.set("agent_ctx", agent_ctx)
+    cl.user_session.set("agent_memory", agent_memory)
+    cl.user_session.set("app_config", app_config)
+    cl.user_session.set("agent_factory", agent_factory)
+    cl.user_session.set("game_fsm", game_fsm)
+
     # Initialize pane update manager for this session
     cl.user_session.set("pane_update_manager", BackgroundPaneUpdateManager())
 
@@ -255,7 +227,9 @@ async def factory() -> None:
         )
     await cl.send_window_message({"type": "pc", "pc": game_state_dict.get("pc", {})})
 
-    logger.info("Set up agent, context, and memory for the chat session.")
+    logger.info(
+        f"✅ Set up agent for phase: {current_phase.emoji()} {current_phase.value}"
+    )
 
 
 def __prepare_memory(key, app_config: AppConfig) -> Memory | Mem0Memory:
@@ -332,19 +306,13 @@ async def on_chat_resume(thread):
     logger = logging.getLogger("on_chat_resume")
     logger.info(f"Resuming chat session from thread {thread.get('id')}")
 
-    # Build LLMs/tools and prompts just like in @cl.on_chat_start
+    # Build LLMs/tools and prepare for phase-based agents
     app_config = AppConfig.from_env()
-    my_system_prompt = set_up_llama_index(app_config)
+    set_up_llama_index(app_config)
 
     # Restore memory
     key = cl.user_session.get("id")
     agent_memory = __prepare_memory(key, app_config)
-
-    # Create agent
-    agent = FunctionAgent(
-        system_prompt=my_system_prompt,
-        memory=agent_memory,
-    )
 
     # Load persisted game state from thread metadata
     game_state_dict = thread.metadata.get("game_state") if thread.metadata else None
@@ -356,17 +324,30 @@ async def on_chat_resume(thread):
         user_visible_game_state = GameState()
 
     # Restore agent context with game state
-    agent_ctx = Context(agent)
+    agent_ctx = Context(None)  # Context without an agent initially
     async with agent_ctx.store.edit_state() as ctx_state:
         ctx_state["user-visible"] = user_visible_game_state
 
-    agent.tool_retriever = ToolProvider(agent_ctx)
+    # Initialize AgentFactory for phase-specific agents
+    agent_factory = AgentFactory()
+
+    # Create phase-appropriate agent
+    current_phase = user_visible_game_state.phase
+    agent = agent_factory.create_agent_for_phase(current_phase, agent_ctx, agent_memory)
+
+    # Update context to reference the agent
+    agent_ctx.agent = agent
+
+    # Initialize FSM
+    game_fsm = get_game_fsm()
 
     # Store in user session
     cl.user_session.set("agent", agent)
     cl.user_session.set("agent_ctx", agent_ctx)
     cl.user_session.set("agent_memory", agent_memory)
     cl.user_session.set("app_config", app_config)
+    cl.user_session.set("agent_factory", agent_factory)
+    cl.user_session.set("game_fsm", game_fsm)
 
     # Initialize pane update manager
     cl.user_session.set("pane_update_manager", BackgroundPaneUpdateManager())
@@ -385,7 +366,9 @@ async def on_chat_resume(thread):
         )
     await cl.send_window_message({"type": "pc", "pc": game_state_dict.get("pc", {})})
 
-    logger.info("Chat session resumed successfully")
+    logger.info(
+        f"✅ Chat session resumed successfully; current phase: {current_phase.emoji()} {current_phase.value}"
+    )
 
 
 def _build_guardrail_context(game_state: GameState) -> str:
@@ -486,19 +469,12 @@ async def handle_message_from_user(message: cl.Message):
                 ctx_state["user_message_id"] = message.id
                 ctx_state["user_message_thread_id"] = message.thread_id
 
-            # Build dynamic guardrail context based on current game state.
+            # Get current game state (for phase transition detection)
             game_state: GameState = await agent_ctx.store.get("user-visible")
-            guardrail_prefix = _build_guardrail_context(game_state)
-            augmented_message = (
-                f"{guardrail_prefix}\n\n{message.content}"
-                if guardrail_prefix
-                else message.content
-            )
+            old_phase = game_state.phase
 
             # Run the agent.
-            handler = agent.run(
-                augmented_message, context=agent_ctx, memory=agent_memory
-            )
+            handler = agent.run(message.content, context=agent_ctx, memory=agent_memory)
             response_message = cl.Message(content="")
             _agent_text_buffer: List[str] = []
             async for event in handler.stream_events():
@@ -550,6 +526,31 @@ async def handle_message_from_user(message: cl.Message):
                 logger.info("Scheduled background scene update (gen=%s)", gen)
 
             turn_span.set_status(Status(StatusCode.OK))
+
+            # Check if game phase transitioned during agent execution
+            game_state_after: GameState = await agent_ctx.store.get("user-visible")
+            new_phase = game_state_after.phase
+            if new_phase != old_phase:
+                logger.info(
+                    f"🔄 Phase transition detected: {old_phase.emoji()} {old_phase.value} → {new_phase.emoji()} {new_phase.value}"
+                )
+                # Get the stored factory and FSM
+                agent_factory: AgentFactory = cl.user_session.get("agent_factory")
+                if agent_factory:
+                    # Create new agent for the new phase
+                    new_agent = agent_factory.create_agent_for_phase(
+                        new_phase, agent_ctx, agent_memory
+                    )
+                    # Update session storage with new agent
+                    cl.user_session.set("agent", new_agent)
+                    logger.info(
+                        f"✅ Agent swapped for new phase: {new_phase.emoji()} {new_phase.value}"
+                    )
+                else:
+                    logger.warning(
+                        "AgentFactory not found in session; cannot swap agent"
+                    )
+
         except Exception as e:
             turn_span.set_status(Status(StatusCode.ERROR, str(e)))
             turn_span.record_exception(e)
