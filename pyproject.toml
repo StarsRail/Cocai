@@ -30,6 +30,7 @@ dependencies = [
     "tenacity>=9.0.0",
     # rname is pinned at 0.3.7 because of a breaking change in 1.0.0 that causes issues with Cochar.
     "rname~=0.3.7",
+    "python-statemachine[diagrams]>=3.0.0",
 ]
 
 [dependency-groups]
