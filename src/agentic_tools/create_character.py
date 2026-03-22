@@ -2,13 +2,13 @@ import logging
 from functools import partial, wraps
 from typing import List, Literal, Optional
 
+import chainlit as cl
 import cochar
 from cochar.character import Character
 from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow import Context
 from pydantic import BaseModel, Field
 
-from events import broadcaster
 from game_state_storage import save_game_state
 from state import GamePhase, GameState
 
@@ -91,9 +91,9 @@ async def create_character(ctx: Context, *args, **kwargs) -> dict:
     await save_game_state(user_visible_state)
 
     try:
-        broadcaster.publish({"type": "pc", "pc": character_as_json})
+        await cl.send_window_message({"type": "pc", "pc": character_as_json})
     except Exception as e:
-        logger.error(f"Failed to publish the new PC via SSE: {e}")
+        logger.error(f"Failed to send the new PC via window message: {e}")
     return character.get_json_format()
 
 

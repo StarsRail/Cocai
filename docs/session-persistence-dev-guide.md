@@ -76,11 +76,11 @@ def from_dict(data: dict) -> "GameState":
     )
 ```
 
-**Step 3:** Broadcast in session start
+**Step 3:** Send in session start
 ```python
 # src/main.py - in @cl.on_chat_start factory()
 game_state_dict = user_visible_game_state.to_dict()
-broadcaster.publish({"type": "inventory", "items": game_state_dict.get("player_inventory", [])})
+await cl.send_window_message({"type": "inventory", "items": game_state_dict.get("player_inventory", [])})
 
 # play.js will receive {"type": "inventory", "items": [...]}
 ```
@@ -93,7 +93,7 @@ async with ctx.store.edit_state() as ctx_state:
     user_visible_state.player_inventory.append("Gold Coin")
 
 await save_game_state(user_visible_state)
-broadcaster.publish({"type": "inventory", "items": user_visible_state.player_inventory})
+await cl.send_window_message({"type": "inventory", "items": user_visible_state.player_inventory})
 ```
 
 ### 2. Inspecting a User's Persisted State
@@ -129,10 +129,10 @@ fresh_state = GameState()
 # Save it
 await save_game_state(fresh_state)
 
-# Broadcast to UI
-broadcaster.publish({"type": "history", "history": ""})
-broadcaster.publish({"type": "clues", "clues": []})
-broadcaster.publish({"type": "pc", "pc": {}})
+# Send to UI
+await cl.send_window_message({"type": "history", "history": ""})
+await cl.send_window_message({"type": "clues", "clues": []})
+await cl.send_window_message({"type": "pc", "pc": {}})
 ```
 
 ### 4. Exporting a User's Game State
@@ -169,9 +169,9 @@ state = GameState.from_dict(data)
 # Save to database
 await save_game_state(state)
 
-# Broadcast to UI
-broadcaster.publish({"type": "history", "history": state.history})
-broadcaster.publish({"type": "clues", "clues": [c.__dict__ for c in state.clues]})
+# Send to UI
+await cl.send_window_message({"type": "history", "history": state.history})
+await cl.send_window_message({"type": "clues", "clues": [c.__dict__ for c in state.clues]})
 ```
 
 ## Testing Persistence
@@ -273,9 +273,9 @@ sqlite3 .chainlit/data.db \
 sqlite3 .chainlit/data.db "SELECT metadata FROM threads LIMIT 1;" | jq .
 ```
 
-### Check SSE Broadcasts
+### Check Window Messages
 
-Open browser DevTools → Network tab → filter for "events" endpoint. You should see events like:
+Open browser DevTools → Console tab. Window messages from Chainlit will be visible when you add a listener. You should see events like:
 ```json
 {"type": "history", "history": "..."}
 {"type": "clues", "clues": [...]}
@@ -349,18 +349,17 @@ The fix ensures we always get a fresh, properly-initialized data layer instance.
 **Symptoms:** Page refreshes, nothing shows in panes
 
 **Check:**
-1. Are SSE events being broadcast in `@cl.on_chat_start`?
+1. Are window messages being sent in `@cl.on_chat_start`?
    ```python
-   # In main.py, verify these broadcaster.publish() calls exist
-   broadcaster.publish({"type": "history", ...})
-   broadcaster.publish({"type": "clues", ...})
+   # In main.py, verify these cl.send_window_message() calls exist
+   await cl.send_window_message({"type": "history", ...})
+   await cl.send_window_message({"type": "clues", ...})
    ```
 
 2. Is play.js listening?
    ```javascript
    // In DevTools console while on /play
-   const es = new EventSource('/api/events')
-   es.onmessage = (ev) => console.log("SSE:", ev.data)
+   window.addEventListener('message', (ev) => console.log("Window message:", ev.data))
    ```
 
 3. Is state dict well-formed?

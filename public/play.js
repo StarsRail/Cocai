@@ -190,43 +190,30 @@ function openDiceWindow (url) {
 }
 
 function listenEvents () {
-  try {
-    const es = new EventSource('/api/events')
-    es.onmessage = (ev) => {
-      console.log('Received SSE:', ev.data)
-      try {
-        const msg = JSON.parse(ev.data)
-        if (msg.type === 'history') {
-          renderHistory(msg.history)
-        } else if (msg.type === 'clues') {
-          renderClues(msg.clues)
-        } else if (msg.type === 'illustration') {
-          renderIllustration(msg.url)
-        } else if (msg.type === 'history_status') {
-          applyHistoryStatus(msg.phase)
-        } else if (msg.type === 'scene_status') {
-          applySceneStatus(msg.phase)
-        } else if (msg.type === 'pc') {
-          renderPC(msg.pc)
-        } else if (msg.type === 'server_shutdown') {
-          try {
-            es.close()
-          } catch (e) {}
-          const iframe = document.querySelector('#chat iframe')
-          if (iframe) iframe.src = 'about:blank'
-        }
-      } catch (e) {
-        /* ignore parse errors */
-      }
+  const onWindowMessage = (event) => {
+    if (event.origin !== window.location.origin) return
+    const chatIframe = document.querySelector('#chat iframe')
+    if (!event.source || (chatIframe && event.source !== chatIframe.contentWindow)) return
+    const data = event.data
+    if (!data || typeof data.type !== 'string') return
+    if (data.type === 'history') {
+      renderHistory(data.history)
+    } else if (data.type === 'clues') {
+      renderClues(data.clues)
+    } else if (data.type === 'illustration') {
+      renderIllustration(data.url)
+    } else if (data.type === 'history_status') {
+      applyHistoryStatus(data.phase)
+    } else if (data.type === 'scene_status') {
+      applySceneStatus(data.phase)
+    } else if (data.type === 'pc') {
+      renderPC(data.pc)
     }
-    window.addEventListener('beforeunload', () => {
-      try {
-        es.close()
-      } catch (e) {}
-    })
-  } catch (e) {
-    console.warn('Failed to setup SSE:', e)
   }
+  window.addEventListener('message', onWindowMessage)
+  window.addEventListener('beforeunload', () => {
+    window.removeEventListener('message', onWindowMessage)
+  })
 }
 
 let layoutInitialized = false
