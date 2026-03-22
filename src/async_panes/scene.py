@@ -22,8 +22,8 @@ from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
 
 from agentic_tools.image_cache import get_cache_instance
-from game_state_storage import save_game_state
-from state import GameState
+from game_state.data_models import GameState
+from game_state.load_and_save import save_game_state
 
 from .async_panes_utils import build_transcript, format_transcript, llm_complete_text
 

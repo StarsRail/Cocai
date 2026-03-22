@@ -6,8 +6,8 @@ from llama_index.core.tools import FunctionTool
 from llama_index.core.workflow import Context
 from pydantic import Field
 
-from game_state_storage import save_game_state
-from state import GameState
+from game_state.data_models import GameState
+from game_state.load_and_save import save_game_state
 
 from .image_generation import generate_image_with_cache
 

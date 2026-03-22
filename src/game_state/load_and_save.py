@@ -9,7 +9,7 @@ from typing import Optional
 
 import chainlit as cl
 
-from state import GameState
+from game_state.data_models import GameState
 from utils import set_up_data_layer
 
 logger = logging.getLogger(__name__)

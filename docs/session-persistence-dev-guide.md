@@ -7,8 +7,9 @@
 Session persistence automatically saves game state (clues, history, illustrations, character) to a database and restores it when the user refreshes or returns later.
 
 **Key Files:**
-- `src/game_state_storage.py` - Save/load logic
-- `src/state.py` - GameState model & serialization
+
+- `game_state/load_and_save.py` - Save/load logic
+- `game_state/data_models.py` - GameState model & serialization
 - `src/main.py` - Session initialization & broadcasting
 - Tools throughout that call `await save_game_state()`
 
@@ -37,7 +38,7 @@ await save_game_state(user_visible_state)
 
 **Step 1:** Update `GameState` dataclass
 ```python
-# src/state.py
+# game_state/data_models.py
 @dataclass
 class GameState:
     phase: GamePhase = GamePhase.CHARACTER_CREATION
@@ -50,7 +51,7 @@ class GameState:
 
 **Step 2:** Update serialization
 ```python
-# src/state.py - in to_dict() method
+# game_state/data_models.py - in to_dict() method
 def to_dict(self) -> dict:
     # ... existing code ...
     return {
@@ -120,7 +121,7 @@ print(f"Character: {game_state_dict.get('pc', {}).get('name')}")
 ```python
 # Clear a user's game state
 import chainlit as cl
-from game_state_storage import save_game_state
+from load_and_save import save_game_state
 from state import GameState
 
 # Create fresh state
@@ -139,7 +140,7 @@ await cl.send_window_message({"type": "pc", "pc": {}})
 
 ```python
 import json
-from game_state_storage import load_game_state
+from load_and_save import load_game_state
 
 # Load user's state
 state = await load_game_state()
@@ -157,7 +158,7 @@ if state:
 ```python
 import json
 from state import GameState
-from game_state_storage import save_game_state
+from load_and_save import save_game_state
 
 # Load from file
 with open("export_abc123.json", "r") as f:
@@ -230,7 +231,7 @@ async def test_load_nonexistent_state():
 
 Add temporary logging:
 ```python
-# In game_state_storage.py
+# In load_and_save.py
 async def save_game_state(game_state: GameState) -> bool:
     logger.info(f"SAVING: history={game_state.history[:50]}...")
     logger.info(f"SAVING: {len(game_state.clues)} clues")
@@ -239,11 +240,11 @@ async def save_game_state(game_state: GameState) -> bool:
 
 ### Fixing: "AttributeError: 'function' object has no attribute 'get_thread'"
 
-**Error:** This occurs when `game_state_storage.py` tries to call `data_layer.get_thread()` but data_layer is actually a function/decorator, not the data layer instance.
+**Error:** This occurs when `load_and_save.py` tries to call `data_layer.get_thread()` but data_layer is actually a function/decorator, not the data layer instance.
 
 **Root Cause:** Don't try to store the data layer in `cl.user_session`. The `cl.data_layer` decorator is not meant to be used this way.
 
-**Solution:** Import `set_up_data_layer` directly in `game_state_storage.py`:
+**Solution:** Import `set_up_data_layer` directly in `load_and_save.py`:
 ```python
 from utils import set_up_data_layer
 
@@ -324,7 +325,7 @@ print(f"DB type: {data_layer.__class__.__name__}")
 
 **Root Cause:** Code tried to use `cl.user_session.get("data_layer")` which returns the decorator function, not an actual data layer instance.
 
-**Solution:** Don't store the data layer in user_session. Instead, import and call `set_up_data_layer()` directly in `game_state_storage.py`:
+**Solution:** Don't store the data layer in user_session. Instead, import and call `set_up_data_layer()` directly in `load_and_save.py`:
 ```python
 # ✅ CORRECT
 from utils import set_up_data_layer
@@ -424,6 +425,6 @@ A: Logger will emit an error. UI won't show the latest update. Consider adding e
 ## Resources
 
 - [Session Persistence Architecture](session-persistence.md) - Detailed design
-- [GameState Model](../src/state.py) - Data structure
-- [Storage Layer](../src/game_state_storage.py) - Implementation
+- [GameState Model](../game_state/data_models.py) - Data structure
+- [Storage Layer](../game_state/load_and_save.py) - Implementation
 - [Chainlit Data Persistence Docs](https://docs.chainlit.io/data-persistence)
