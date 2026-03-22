@@ -16,6 +16,10 @@ class GamePhase(Enum):
     CHARACTER_CREATION = "character_creation"
     ADVENTURE = "adventure"
 
+    def emoji(self) -> str:
+        """Visual emoji for terminal/log display."""
+        return {"character_creation": "📋", "adventure": "🗺️"}[self.value]
+
 
 @dataclass
 class Clue:
