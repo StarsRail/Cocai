@@ -29,8 +29,8 @@ from async_panes.history import update_history_if_needed
 from async_panes.pane_update_manager import BackgroundPaneUpdateManager
 from async_panes.scene import update_scene_if_needed
 from config import AppConfig
-from game_state_storage import load_game_state
-from state import GamePhase, GameState
+from game_state.data_models import GamePhase, GameState
+from game_state.load_and_save import load_game_state
 from utils import (
     build_llama_index_llm,
     get_llm_provider_display_name,

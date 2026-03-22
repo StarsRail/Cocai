@@ -66,7 +66,7 @@ This document describes the session persistence system for CoCai, which automati
 
 ## Component Architecture
 
-### 1. **Storage Layer** (`src/game_state_storage.py`)
+### 1. **Storage Layer** (`game_state/load_and_save.py`)
 
 Provides abstract persistence operations independent of storage backend.
 
@@ -85,7 +85,7 @@ async def load_game_state() -> Optional[GameState]
 - No data layer → logs warning, returns None/False
 - Malformed metadata → caught, logged, returns None
 
-### 2. **Game State Model** (`src/state.py`)
+### 2. **Game State Model** (`game_state/data_models.py`)
 
 ```python
 @dataclass
@@ -255,7 +255,7 @@ To persist a new property (e.g., `player_notes: str`):
 
 Currently uses Chainlit's SQLAlchemy data layer. To switch backends:
 
-1. Replace `save_game_state()` and `load_game_state()` in `game_state_storage.py`
+1. Replace `save_game_state()` and `load_game_state()` in `load_and_save.py`
 2. Backends to consider:
    - PostgreSQL (via SQLAlchemy)
    - Redis (fast, in-memory)

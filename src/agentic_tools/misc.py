@@ -20,8 +20,8 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from pydantic import Field
 
 from events import broadcaster
-from game_state_storage import save_game_state
-from state import Clue, GameState
+from game_state.data_models import Clue, GameState
+from game_state.load_and_save import save_game_state
 
 
 class ToolForSuggestingChoices:
