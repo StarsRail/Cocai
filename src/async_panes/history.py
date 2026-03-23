@@ -7,7 +7,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import chainlit as cl
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
@@ -15,7 +14,12 @@ from llama_index.memory.mem0 import Mem0Memory
 from game_state.data_models import GameState
 from game_state.load_and_save import save_game_state
 
-from .async_panes_utils import build_transcript, format_transcript, llm_complete_text
+from .async_panes_utils import (
+    build_transcript,
+    format_transcript,
+    llm_complete_text,
+    safe_send_window_message,
+)
 
 
 async def update_history_if_needed(
@@ -38,14 +42,16 @@ async def update_history_if_needed(
         logger.warning("No transcript found for history update.")
         return
     try:
-        await cl.send_window_message({"type": "history_status", "phase": "evaluating"})
+        await safe_send_window_message(
+            {"type": "history_status", "phase": "evaluating"}
+        )
         should = await __should_update_history(transcript)
         if not should:
-            await cl.send_window_message(
+            await safe_send_window_message(
                 {"type": "history_status", "phase": "unchanged"}
             )
             return
-        await cl.send_window_message(
+        await safe_send_window_message(
             {"type": "history_status", "phase": "summarizing"}
         )
         if await __should_update_history(transcript):
@@ -57,22 +63,22 @@ async def update_history_if_needed(
             async with ctx.store.edit_state() as ctx_state:
                 user_visible_state: GameState = ctx_state.get("user-visible")
                 user_visible_state.history = new_summary
-                await cl.send_window_message(
+                await safe_send_window_message(
                     {"type": "history", "history": user_visible_state.history}
                 )
-                await cl.send_window_message(
+                await safe_send_window_message(
                     {"type": "history_status", "phase": "updated"}
                 )
             # Persist the updated game state
             await save_game_state(user_visible_state)
         else:
-            await cl.send_window_message(
+            await safe_send_window_message(
                 {"type": "history_status", "phase": "unchanged"}
             )
     except asyncio.CancelledError:
         logger.info("auto_history_update task was cancelled")
         try:
-            await cl.send_window_message(
+            await safe_send_window_message(
                 {"type": "history_status", "phase": "cancelled"}
             )
         except Exception:
@@ -81,7 +87,7 @@ async def update_history_if_needed(
     except Exception as e:
         logger.error("Auto history update failed.", exc_info=e)
         try:
-            await cl.send_window_message({"type": "history_status", "phase": "error"})
+            await safe_send_window_message({"type": "history_status", "phase": "error"})
         except Exception:
             pass
 

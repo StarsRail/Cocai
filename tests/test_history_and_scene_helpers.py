@@ -69,7 +69,16 @@ async def test_should_update_scene_and_generate_image(monkeypatch):
         "__describe_visual_scene",
         lambda transcript: _future_with("A dark library with flickering candles."),  # type: ignore[attr-defined]
     )
-    monkeypatch.setattr(scene, "httpx", SimpleNamespace(AsyncClient=DummyAsyncClient))
+
+    class DummyImageCache:
+        async def generate_and_cache_scene_image(self, *args, **kwargs):  # type: ignore[override]
+            out = Path("public/illustrations/scene-test.png")
+            out.write_bytes(b"test-image")
+            return "/public/illustrations/scene-test.png"
+
+    monkeypatch.setattr(
+        scene, "get_cache_instance", lambda: _future_with(DummyImageCache())
+    )
 
     class DummyCtxStore:
         def __init__(self):
@@ -104,6 +113,59 @@ async def test_should_update_scene_and_generate_image(monkeypatch):
     # Clean up created file.
     for f in new_files:
         f.unlink()
+
+
+@pytest.mark.asyncio
+async def test_update_history_if_needed_without_chainlit_context(monkeypatch):
+    monkeypatch.setattr(
+        history, "build_transcript", lambda **_: [{"role": "user", "content": "Go"}]
+    )
+    monkeypatch.setattr(
+        history, "__should_update_history", lambda transcript: _future_with("YES")
+    )
+    monkeypatch.setattr(
+        history,
+        "__summarize_story",
+        lambda transcript, current: _future_with("Updated summary"),
+    )
+
+    saved: dict[str, str] = {"history": ""}
+
+    async def _fake_save_game_state(state):
+        saved["history"] = state.history
+
+    monkeypatch.setattr(history, "save_game_state", _fake_save_game_state)
+
+    class DummyCtxStore:
+        def __init__(self):
+            self.data = {"user-visible": SimpleNamespace(history="Old summary")}
+
+        async def get(self, key):
+            return self.data[key]
+
+        def edit_state(self):
+            outer = self
+
+            class CtxMgr:
+                async def __aenter__(self):
+                    return self
+
+                async def __aexit__(self, exc_type, exc, tb):
+                    return False
+
+                def get(self, key):
+                    return outer.data[key]
+
+            return CtxMgr()
+
+    dummy_ctx = SimpleNamespace(store=DummyCtxStore())
+
+    await history.update_history_if_needed(
+        dummy_ctx, memory=object(), last_user_msg="hi"
+    )  # type: ignore[arg-type]
+
+    assert dummy_ctx.store.data["user-visible"].history == "Updated summary"
+    assert saved["history"] == "Updated summary"
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+import chainlit as cl
 from llama_index.core import Settings
 
 
@@ -89,3 +90,15 @@ async def llm_complete_text(prompt: str) -> str:
         raise
     except Exception:
         return ""
+
+
+async def safe_send_window_message(payload: dict[str, object]) -> None:
+    """Send a Chainlit window message when context is available.
+
+    Background updaters can be invoked from tests where Chainlit context vars are
+    not initialized; in that case, silently skip UI messaging and continue.
+    """
+    try:
+        await cl.send_window_message(payload)
+    except Exception:
+        return

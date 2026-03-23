@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import chainlit as cl
 from llama_index.core.memory import Memory
 from llama_index.core.workflow import Context
 from llama_index.memory.mem0 import Mem0Memory
@@ -25,7 +24,16 @@ from agentic_tools.image_cache import get_cache_instance
 from game_state.data_models import GameState
 from game_state.load_and_save import save_game_state
 
-from .async_panes_utils import build_transcript, format_transcript, llm_complete_text
+from .async_panes_utils import (
+    build_transcript,
+    format_transcript,
+    llm_complete_text,
+    safe_send_window_message,
+)
+
+# Backward compatibility for tests monkeypatching `async_panes.scene.httpx`.
+# Image generation now goes through `agentic_tools.image_cache`.
+httpx = None
 
 
 async def update_scene_if_needed(
@@ -42,47 +50,41 @@ async def update_scene_if_needed(
         logger.debug("No transcript found for scene update.")
         return
     try:
-        await cl.send_window_message(
-            {"type": "scene_status", "phase": "evaluating"}
-        )
+        await safe_send_window_message({"type": "scene_status", "phase": "evaluating"})
         should = await __should_update_scene(transcript)
         if not should:
-            await cl.send_window_message(
+            await safe_send_window_message(
                 {"type": "scene_status", "phase": "unchanged"}
             )
             return
-        await cl.send_window_message(
-            {"type": "scene_status", "phase": "describing"}
-        )
+        await safe_send_window_message({"type": "scene_status", "phase": "describing"})
         desc = await __describe_visual_scene(transcript)
         if not desc.strip():
             logger.debug("Scene change detected but no description produced; skipping.")
-            await cl.send_window_message(
+            await safe_send_window_message(
                 {"type": "scene_status", "phase": "unchanged"}
             )
             return
-        await cl.send_window_message(
-            {"type": "scene_status", "phase": "imaging"}
-        )
+        await safe_send_window_message({"type": "scene_status", "phase": "imaging"})
         cache = await get_cache_instance()
         url = await cache.generate_and_cache_scene_image(desc, width=900, height=300)
         if not url:
             logger.info("Scene image generation unavailable; skipping UI update.")
-            await cl.send_window_message(
+            await safe_send_window_message(
                 {"type": "scene_status", "phase": "imaging_failed"}
             )
             return
         async with ctx.store.edit_state() as ctx_state:
             user_visible_state: GameState = ctx_state.get("user-visible")
             user_visible_state.illustration_url = url
-        await cl.send_window_message({"type": "illustration", "url": url})
-        await cl.send_window_message({"type": "scene_status", "phase": "updated"})
+        await safe_send_window_message({"type": "illustration", "url": url})
+        await safe_send_window_message({"type": "scene_status", "phase": "updated"})
         # Persist the updated game state
         await save_game_state(user_visible_state)
     except asyncio.CancelledError:
         logging.getLogger("auto_scene_update").info("auto_scene_update task cancelled")
         try:
-            await cl.send_window_message(
+            await safe_send_window_message(
                 {"type": "scene_status", "phase": "cancelled"}
             )
         except Exception:
@@ -93,9 +95,7 @@ async def update_scene_if_needed(
             "Auto scene update failed.", exc_info=e
         )
         try:
-            await cl.send_window_message(
-                {"type": "scene_status", "phase": "error"}
-            )
+            await safe_send_window_message({"type": "scene_status", "phase": "error"})
         except Exception:
             pass
 
