@@ -23,7 +23,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from agents.agent_factory import AgentFactory
-from agents.game_fsm import get_game_fsm
+from agents.game_fsm import GameFSM
 from async_panes.history import update_history_if_needed
 from async_panes.pane_update_manager import BackgroundPaneUpdateManager
 from async_panes.scene import update_scene_if_needed
@@ -199,8 +199,10 @@ async def factory() -> None:
     # Update context to reference the agent (needed for some tool bindings)
     agent_ctx.agent = agent
 
-    # Initialize FSM (tracks game phase state)
-    game_fsm = get_game_fsm()
+    # Initialize per-session FSM and sync it with persisted game phase.
+    game_fsm = GameFSM()
+    if current_phase == GamePhase.ADVENTURE:
+        game_fsm.send("start_adventure", pc_exists=True)
 
     # Store in user session for message handling
     cl.user_session.set("agent", agent)
@@ -338,8 +340,10 @@ async def on_chat_resume(thread):
     # Update context to reference the agent
     agent_ctx.agent = agent
 
-    # Initialize FSM
-    game_fsm = get_game_fsm()
+    # Initialize per-session FSM and sync it with restored game phase.
+    game_fsm = GameFSM()
+    if current_phase == GamePhase.ADVENTURE:
+        game_fsm.send("start_adventure", pc_exists=True)
 
     # Store in user session
     cl.user_session.set("agent", agent)
@@ -536,13 +540,23 @@ async def handle_message_from_user(message: cl.Message):
                 )
                 # Get the stored factory and FSM
                 agent_factory: AgentFactory = cl.user_session.get("agent_factory")
+                game_fsm: GameFSM = cl.user_session.get("game_fsm")
                 if agent_factory:
                     # Create new agent for the new phase
                     new_agent = agent_factory.create_agent_for_phase(
                         new_phase, agent_ctx, agent_memory
                     )
+                    # Keep context and session in sync with the swapped agent.
+                    agent_ctx.agent = new_agent
                     # Update session storage with new agent
                     cl.user_session.set("agent", new_agent)
+                    # Advance FSM to match the newly persisted phase.
+                    if (
+                        game_fsm
+                        and old_phase == GamePhase.CHARACTER_CREATION
+                        and new_phase == GamePhase.ADVENTURE
+                    ):
+                        game_fsm.send("start_adventure", pc_exists=True)
                     logger.info(
                         f"✅ Agent swapped for new phase: {new_phase.emoji()} {new_phase.value}"
                     )
